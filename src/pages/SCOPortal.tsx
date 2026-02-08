@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import GroupChat from '../components/GroupChat';
+import { GroupChat } from '../components/GroupChat';
 
 const SCOPortal: React.FC = () => {
   const navigate = useNavigate();

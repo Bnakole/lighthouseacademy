@@ -3,7 +3,7 @@ import { AppProvider } from './context/AppContext';
 import { Navbar } from './components/Navbar';
 import { Dashboard } from './pages/Dashboard';
 import { Registration } from './pages/Registration';
-import { VerifyEmail } from './pages/VerifyEmail';
+// VerifyEmail removed
 import { StudentLogin } from './pages/StudentLogin';
 import StudentPortal from './pages/StudentPortal';
 import { AdminLogin } from './pages/AdminLogin';
@@ -26,7 +26,7 @@ export function App() {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/register" element={<Registration />} />
-            <Route path="/verify-email" element={<VerifyEmail />} />
+            {/* Verify email removed */}
             <Route path="/student-login" element={<StudentLogin />} />
             <Route path="/student-portal" element={<StudentPortal />} />
             <Route path="/admin-login" element={<AdminLogin />} />

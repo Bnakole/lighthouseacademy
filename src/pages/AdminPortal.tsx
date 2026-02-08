@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { Student, Session, Facilitator } from '../types';
 import CodeEditor from '../components/CodeEditor';
-import GroupChat from '../components/GroupChat';
+import { GroupChat } from '../components/GroupChat';
 
 const AdminPortal: React.FC = () => {
   const navigate = useNavigate();

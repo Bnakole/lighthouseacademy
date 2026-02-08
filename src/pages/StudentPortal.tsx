@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { Material, Message } from '../types';
 import AIChat from '../components/AIChat';
-import GroupChat from '../components/GroupChat';
+import { GroupChat } from '../components/GroupChat';
 
 const StudentPortal: React.FC = () => {
   const navigate = useNavigate();
@@ -292,7 +292,7 @@ const StudentPortal: React.FC = () => {
                 </div>
                 <div className="flex justify-between py-2">
                   <span className="text-gray-500">Registered</span>
-                  <span className="font-medium">{new Date(currentStudent.registeredAt).toLocaleDateString()}</span>
+                  <span className="font-medium">{new Date(currentStudent.registrationDate).toLocaleDateString()}</span>
                 </div>
               </div>
             </div>
@@ -300,7 +300,7 @@ const StudentPortal: React.FC = () => {
             {/* Statement of Purpose */}
             <div className="bg-white rounded-xl shadow-lg p-6">
               <h2 className="text-xl font-bold mb-4">Statement of Purpose</h2>
-              <p className="text-gray-600 leading-relaxed">{currentStudent.address}</p>
+              <p className="text-gray-600 leading-relaxed">{currentStudent.statementOfPurpose || 'N/A'}</p>
             </div>
           </div>
         )}
@@ -607,10 +607,10 @@ const StudentPortal: React.FC = () => {
 
       {/* Group Chat */}
       <GroupChat
-        userId={currentStudent.id}
-        userName={`${currentStudent.firstName} ${currentStudent.lastName}`}
-        userType={currentStudent.isLeader ? 'leader' : 'student'}
-        userPhoto={currentStudent.profilePicture}
+        senderId={currentStudent.id}
+        senderName={`${currentStudent.firstName} ${currentStudent.lastName}`}
+        senderType={currentStudent.isLeader ? 'leader' : 'student'}
+        senderPhoto={currentStudent.profilePicture}
       />
 
       {/* Photo Upload Modal */}

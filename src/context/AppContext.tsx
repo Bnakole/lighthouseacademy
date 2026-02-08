@@ -551,10 +551,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return { success: false, message: 'Invalid registration number' };
     }
     
-    if (!student.emailConfirmed) {
-      return { success: false, message: 'Please verify your email first' };
-    }
-    
+    // Email verification removed - students can login directly
     setAuth({
       isAuthenticated: true,
       isStudentLoggedIn: true,

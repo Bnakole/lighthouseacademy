@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import GroupChat from '../components/GroupChat';
+import { GroupChat } from '../components/GroupChat';
 
 const SecretaryPortal: React.FC = () => {
   const navigate = useNavigate();
