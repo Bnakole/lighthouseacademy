@@ -8,7 +8,7 @@ export function AdminLogin() {
   const [selectedRole, setSelectedRole] = useState<LoginType>(null);
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const { loginAdmin } = useApp();
+  const { loginAdmin, setStaffOnline } = useApp();
   const navigate = useNavigate();
 
   // Passwords for each role
@@ -30,6 +30,9 @@ export function AdminLogin() {
     if (password === PASSWORDS[selectedRole]) {
       // Store the role in localStorage
       localStorage.setItem('lha_staff_role', selectedRole);
+      
+      // Set staff online status
+      setStaffOnline(selectedRole, true);
       
       if (selectedRole === 'admin') {
         loginAdmin(password);

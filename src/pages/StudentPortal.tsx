@@ -1,36 +1,46 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import { Material, Message } from '../types';
-import AIChat from '../components/AIChat';
 import { GroupChat } from '../components/GroupChat';
 
-const StudentPortal: React.FC = () => {
+const StudentPortal = () => {
   const navigate = useNavigate();
-  const {
-    auth,
-    logoutStudent,
-    students,
-    materials,
-    messages,
-    sendMessage,
-    getMessagesByStudent,
-    markMessagesAsRead,
-    getUnreadCount,
-    updateProfilePicture,
-    uploadPaymentReceipt,
-    siteSettings,
-    isOnline,
-    isSyncing
-  } = useApp();
-
-  const [activeTab, setActiveTab] = useState<'profile' | 'materials' | 'payment' | 'certificate' | 'joinclass' | 'messages' | 'ai'>('profile');
-  const [showPhotoModal, setShowPhotoModal] = useState(false);
-  const [newPhoto, setNewPhoto] = useState<string | null>(null);
+  const { auth, logout, students, updateProfilePicture, uploadPaymentReceipt, sendMessage, messages, siteSettings, staffOnlineStatus } = useApp();
+  
+  // Get staff contacts from siteSettings (updated by SCO and Secretary)
+  const staffContacts = {
+    secretary: {
+      name: siteSettings?.staffContacts?.secretary?.name || 'Secretary',
+      email: siteSettings?.staffContacts?.secretary?.email || 'secretary@lighthouseacademy.com',
+      phone: siteSettings?.staffContacts?.secretary?.phone || '+234 800 000 0001',
+      occupation: siteSettings?.staffContacts?.secretary?.occupation || 'Administrative Officer',
+      school: siteSettings?.staffContacts?.secretary?.school || 'Light House Academy',
+      profilePicture: siteSettings?.staffContacts?.secretary?.profilePicture || null
+    },
+    sco: {
+      name: siteSettings?.staffContacts?.sco?.name || 'Student Coordinator',
+      email: siteSettings?.staffContacts?.sco?.email || 'sco@lighthouseacademy.com',
+      phone: siteSettings?.staffContacts?.sco?.phone || '+234 800 000 0002',
+      occupation: siteSettings?.staffContacts?.sco?.occupation || 'Student Coordinator',
+      school: siteSettings?.staffContacts?.sco?.school || 'Light House Academy',
+      profilePicture: siteSettings?.staffContacts?.sco?.profilePicture || null
+    },
+    admin: {
+      name: siteSettings?.staffContacts?.admin?.name || 'Administrator',
+      email: siteSettings?.staffContacts?.admin?.email || 'admin@lighthouseacademy.com',
+      phone: siteSettings?.staffContacts?.admin?.phone || '+234 800 000 0003',
+      occupation: siteSettings?.staffContacts?.admin?.occupation || 'System Administrator',
+      school: siteSettings?.staffContacts?.admin?.school || 'Light House Academy',
+      profilePicture: siteSettings?.staffContacts?.admin?.profilePicture || null
+    }
+  };
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showGroupChat, setShowGroupChat] = useState(false);
   const [newMessage, setNewMessage] = useState('');
   const [receiptFile, setReceiptFile] = useState<string | null>(null);
   const [receiptFileName, setReceiptFileName] = useState('');
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [notifications, setNotifications] = useState({ push: true, email: true });
 
   // Get current student data from students array (for real-time updates)
   const currentStudent = auth.currentStudent 
@@ -38,630 +48,948 @@ const StudentPortal: React.FC = () => {
     : null;
 
   useEffect(() => {
-    if (!auth.isStudentLoggedIn) {
+    if (!auth.isStudentLoggedIn || !currentStudent) {
       navigate('/student-login');
     }
-  }, [auth.isStudentLoggedIn, navigate]);
+  }, [auth.isStudentLoggedIn, currentStudent, navigate]);
 
-  useEffect(() => {
-    if (activeTab === 'messages' && currentStudent) {
-      markMessagesAsRead(currentStudent.id, 'student');
-    }
-  }, [activeTab, currentStudent]);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  if (!currentStudent) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-4 border-white border-t-transparent"></div>
+      </div>
+    );
+  }
 
   const handleLogout = () => {
-    logoutStudent();
+    logout();
     navigate('/');
   };
 
-  // Profile photo handlers
-  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleProfilePictureChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        alert('File size must be less than 5MB');
-        return;
-      }
+    if (file && file.size <= 5 * 1024 * 1024) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setNewPhoto(reader.result as string);
+        updateProfilePicture(currentStudent.id, reader.result as string);
       };
       reader.readAsDataURL(file);
     }
   };
 
-  const handleSavePhoto = () => {
-    if (newPhoto && currentStudent) {
-      updateProfilePicture(currentStudent.registrationNumber, newPhoto);
-      setShowPhotoModal(false);
-      setNewPhoto(null);
-    }
-  };
-
-  // Receipt upload handler
-  const handleReceiptChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleReceiptUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 10 * 1024 * 1024) {
-        alert('File size must be less than 10MB');
-        return;
-      }
+    if (file && file.size <= 10 * 1024 * 1024) {
+      setReceiptFileName(file.name);
       const reader = new FileReader();
       reader.onloadend = () => {
         setReceiptFile(reader.result as string);
-        setReceiptFileName(file.name);
       };
       reader.readAsDataURL(file);
     }
   };
 
-  const handleUploadReceipt = () => {
-    if (receiptFile && currentStudent) {
+  const submitReceipt = () => {
+    if (receiptFile) {
       uploadPaymentReceipt(currentStudent.id, receiptFile);
       setReceiptFile(null);
       setReceiptFileName('');
-      alert('Receipt uploaded successfully! Please wait for admin verification.');
     }
   };
 
-  // Messages handler
-  const handleSendMessage = () => {
-    if (!newMessage.trim() || !currentStudent) return;
-    sendMessage(currentStudent.id, newMessage, 'student');
-    setNewMessage('');
+  const sendMessageToAdmin = () => {
+    if (newMessage.trim()) {
+      sendMessage(
+        currentStudent.id,
+        `${currentStudent.firstName} ${currentStudent.lastName}`,
+        'student',
+        'admin',
+        'admin',
+        newMessage
+      );
+      setNewMessage('');
+    }
   };
 
-  // Get student materials
-  const studentMaterials = materials.filter((m: Material) => 
-    !m.targetSession || m.targetSession === '' || m.targetSession === currentStudent?.session
+  const studentMessages = messages.filter(
+    m => (m.senderId === currentStudent.id && m.recipientId === 'admin') ||
+         (m.senderId === 'admin' && m.recipientId === currentStudent.id)
   );
 
-  // Get student messages
-  const studentMessages = currentStudent ? getMessagesByStudent(currentStudent.id) : [];
-  const unreadCount = currentStudent ? getUnreadCount(currentStudent.id, 'student') : 0;
-
-  // Download file
-  const downloadFile = (data: string, fileName: string) => {
-    const link = document.createElement('a');
-    link.href = data;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const getInitials = () => {
+    return `${currentStudent.firstName?.[0] || ''}${currentStudent.lastName?.[0] || ''}`.toUpperCase();
   };
 
-  if (!auth.isStudentLoggedIn || !currentStudent) return null;
+  const isPaymentApproved = currentStudent.paymentStatus === 'approved';
+  const isPaymentPending = currentStudent.paymentStatus === 'pending';
+
+  const tabs = [
+    { id: 'dashboard', label: 'Dashboard', icon: '🏠' },
+    { id: 'materials', label: 'Materials', icon: '📚' },
+    { id: 'payment', label: 'Payment', icon: '💳' },
+    { id: 'certificate', label: 'Certificate', icon: '🎓' },
+    { id: 'messages', label: 'Messages', icon: '💬' },
+    { id: 'class', label: 'Join Class', icon: '🎥' },
+    { id: 'settings', label: 'Settings', icon: '⚙️' },
+  ];
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900">
       {/* Header */}
-      <div className="bg-gradient-to-r from-blue-800 to-indigo-700 text-white py-4 px-6 shadow-lg">
-        <div className="max-w-6xl mx-auto flex justify-between items-center">
-          <div className="flex items-center space-x-4">
-            <button onClick={() => setShowPhotoModal(true)} className="relative group">
-              {currentStudent.profilePicture ? (
-                <img 
-                  src={currentStudent.profilePicture} 
-                  alt="Profile" 
-                  className="w-12 h-12 rounded-full object-cover border-2 border-white"
-                />
-              ) : (
-                <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center text-xl font-bold border-2 border-white">
-                  {currentStudent.firstName[0]}{currentStudent.lastName[0]}
-                </div>
-              )}
-              <div className="absolute inset-0 bg-black bg-opacity-50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                <span className="text-xs">Edit</span>
-              </div>
-            </button>
-            <div>
-              <h1 className="text-lg font-bold">
-                {currentStudent.firstName} {currentStudent.lastName}
-                {currentStudent.isLeader && (
-                  <button
-                    onClick={() => navigate('/leader-portal')}
-                    className="ml-2 text-yellow-300 hover:text-yellow-100 transition"
-                  >
-                    ⭐ Leader Portal →
-                  </button>
+      <header className="bg-white/10 backdrop-blur-lg border-b border-white/10 sticky top-0 z-40">
+        <div className="max-w-7xl mx-auto px-4 py-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div 
+                className="relative cursor-pointer group"
+                onClick={() => setShowProfileModal(true)}
+              >
+                {currentStudent.profilePicture ? (
+                  <img 
+                    src={currentStudent.profilePicture} 
+                    alt="Profile" 
+                    className="w-12 h-12 rounded-full object-cover border-2 border-yellow-400 group-hover:border-yellow-300 transition-all"
+                  />
+                ) : (
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center text-white font-bold text-lg group-hover:scale-105 transition-all">
+                    {getInitials()}
+                  </div>
                 )}
-              </h1>
-              <p className="text-sm text-blue-200">{currentStudent.registrationNumber}</p>
+                {currentStudent.isLeader && (
+                  <span className="absolute -top-1 -right-1 text-lg">⭐</span>
+                )}
+                <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
+              </div>
+              <div className="hidden sm:block">
+                <h1 className="text-white font-semibold text-lg">{currentStudent.firstName} {currentStudent.lastName}</h1>
+                <p className="text-blue-200 text-xs">{currentStudent.registrationNumber}</p>
+              </div>
             </div>
-          </div>
-          <div className="flex items-center space-x-4">
-            {/* Sync status */}
-            <div className="hidden md:flex items-center space-x-2 text-sm">
-              {isSyncing && <span className="animate-pulse">🔄</span>}
-              <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-400' : 'bg-red-400'}`}></span>
+            
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowGroupChat(true)}
+                className="relative p-2 bg-white/10 hover:bg-white/20 rounded-full transition-all text-white"
+                title="Group Chat"
+              >
+                <span className="text-xl">💬</span>
+                <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-[10px] flex items-center justify-center text-white font-bold">!</span>
+              </button>
+              <button
+                onClick={handleLogout}
+                className="px-4 py-2 bg-red-500/80 hover:bg-red-500 text-white rounded-lg text-sm font-medium transition-all flex items-center gap-2"
+              >
+                <span className="hidden sm:inline">Logout</span>
+                <span>🚪</span>
+              </button>
             </div>
-            <button onClick={handleLogout} className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg transition text-sm">
-              Logout
-            </button>
           </div>
         </div>
-      </div>
+      </header>
 
       {/* Navigation Tabs */}
-      <div className="bg-white shadow">
-        <div className="max-w-6xl mx-auto px-6">
-          <div className="flex overflow-x-auto space-x-4 py-3">
-            {[
-              { id: 'profile', label: 'Profile', icon: '👤' },
-              { id: 'materials', label: 'Materials', icon: '📚' },
-              { id: 'payment', label: 'Payment', icon: '💳' },
-              { id: 'certificate', label: 'Certificate', icon: '🎓' },
-              { id: 'joinclass', label: 'Join Class', icon: '🎯' },
-              { id: 'messages', label: 'Messages', icon: '💬', badge: unreadCount },
-              { id: 'ai', label: 'AI Assistant', icon: '🤖' }
-            ].map((tab) => (
+      <nav className="bg-white/5 backdrop-blur-sm border-b border-white/10 sticky top-[65px] z-30 overflow-x-auto">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="flex gap-1 py-2">
+            {tabs.map(tab => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as typeof activeTab)}
-                className={`flex items-center space-x-2 px-4 py-2 rounded-lg whitespace-nowrap transition relative ${
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
                   activeTab === tab.id
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-600 hover:bg-gray-100'
+                    ? 'bg-white text-blue-900 shadow-lg'
+                    : 'text-white/70 hover:text-white hover:bg-white/10'
                 }`}
               >
                 <span>{tab.icon}</span>
-                <span>{tab.label}</span>
-                {tab.badge && tab.badge > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">
-                    {tab.badge}
-                  </span>
-                )}
+                <span className="hidden sm:inline">{tab.label}</span>
               </button>
             ))}
           </div>
         </div>
-      </div>
+      </nav>
 
       {/* Main Content */}
-      <div className="max-w-6xl mx-auto px-6 py-8">
-        {/* Profile Tab */}
-        {activeTab === 'profile' && (
-          <div className="grid md:grid-cols-2 gap-6">
-            {/* Profile Card */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h2 className="text-xl font-bold mb-4">Profile Information</h2>
-              <div className="flex items-center space-x-4 mb-6">
-                {currentStudent.profilePicture ? (
-                  <img src={currentStudent.profilePicture} alt="Profile" className="w-24 h-24 rounded-full object-cover" />
-                ) : (
-                  <div className="w-24 h-24 rounded-full bg-blue-100 flex items-center justify-center text-3xl font-bold text-blue-600">
-                    {currentStudent.firstName[0]}{currentStudent.lastName[0]}
-                  </div>
-                )}
+      <main className="max-w-7xl mx-auto px-4 py-6">
+        {/* Dashboard Tab */}
+        {activeTab === 'dashboard' && (
+          <div className="space-y-6 animate-fadeIn">
+            {/* Welcome Card */}
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-6 text-white shadow-xl">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                  <h3 className="text-xl font-bold">{currentStudent.firstName} {currentStudent.lastName}</h3>
-                  <p className="text-gray-500">{currentStudent.email}</p>
-                  {currentStudent.emailConfirmed && (
-                    <span className="text-green-600 text-sm">✓ Email Verified</span>
-                  )}
+                  <h2 className="text-2xl font-bold mb-1">Welcome back, {currentStudent.firstName}! 👋</h2>
+                  <p className="text-blue-100">Continue your learning journey with Light House Academy</p>
                 </div>
-              </div>
-              <div className="space-y-3">
-                <div className="flex justify-between py-2 border-b">
-                  <span className="text-gray-500">Registration Number</span>
-                  <span className="font-medium">{currentStudent.registrationNumber}</span>
-                </div>
-                <div className="flex justify-between py-2 border-b">
-                  <span className="text-gray-500">Phone</span>
-                  <span className="font-medium">{currentStudent.phone}</span>
-                </div>
-                <div className="flex justify-between py-2 border-b">
-                      <span className="text-gray-500">Gender</span>
-                      <span className="font-medium capitalize">{currentStudent.gender}</span>
-                    </div>
-                    <div className="flex justify-between py-2 border-b">
-                      <span className="text-gray-500">Drama Group</span>
-                      <span className="font-medium">{currentStudent.dramaGroup || 'N/A'}</span>
-                    </div>
-                    <div className="flex justify-between py-2 border-b">
-                      <span className="text-gray-500">Position</span>
-                      <span className="font-medium">{currentStudent.position || 'N/A'}</span>
-                    </div>
-                    <div className="flex justify-between py-2 border-b">
-                      <span className="text-gray-500">Country</span>
-                      <span className="font-medium">{currentStudent.country || 'N/A'}</span>
-                    </div>
-                    <div className="flex justify-between py-2 border-b">
-                      <span className="text-gray-500">State</span>
-                      <span className="font-medium">{currentStudent.state || 'N/A'}</span>
-                    </div>
-                    <div className="flex justify-between py-2 border-b">
-                      <span className="text-gray-500">Program</span>
-                      <span className="font-medium">{currentStudent.program}</span>
-                    </div>
-                <div className="flex justify-between py-2 border-b">
-                  <span className="text-gray-500">Session</span>
-                  <span className="font-medium">{currentStudent.session}</span>
-                </div>
-                <div className="flex justify-between py-2 border-b">
-                  <span className="text-gray-500">Status</span>
-                  <span className={`font-medium capitalize ${
-                    currentStudent.status === 'active' ? 'text-green-600' :
-                    currentStudent.status === 'graduated' ? 'text-blue-600' :
-                    'text-gray-600'
-                  }`}>{currentStudent.status}</span>
-                </div>
-                <div className="flex justify-between py-2">
-                  <span className="text-gray-500">Registered</span>
-                  <span className="font-medium">{new Date(currentStudent.registrationDate).toLocaleDateString()}</span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setActiveTab('materials')}
+                    className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg font-medium transition-all flex items-center gap-2"
+                  >
+                    <span>📚</span> View Materials
+                  </button>
                 </div>
               </div>
             </div>
 
-            {/* Statement of Purpose */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h2 className="text-xl font-bold mb-4">Statement of Purpose</h2>
-              <p className="text-gray-600 leading-relaxed">{currentStudent.statementOfPurpose || 'N/A'}</p>
+            {/* Quick Stats */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-white/10 backdrop-blur-lg rounded-xl p-4 text-white border border-white/10">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-green-500/20 rounded-xl flex items-center justify-center text-2xl">
+                    {isPaymentApproved ? '✅' : isPaymentPending ? '⏳' : '💳'}
+                  </div>
+                  <div>
+                    <p className="text-white/60 text-sm">Payment</p>
+                    <p className={`font-semibold capitalize ${
+                      isPaymentApproved ? 'text-green-400' :
+                      isPaymentPending ? 'text-yellow-400' : 'text-white'
+                    }`}>
+                      {currentStudent.paymentStatus || 'Not Submitted'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white/10 backdrop-blur-lg rounded-xl p-4 text-white border border-white/10">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-blue-500/20 rounded-xl flex items-center justify-center text-2xl">
+                    {currentStudent.certificate ? '🎓' : '📄'}
+                  </div>
+                  <div>
+                    <p className="text-white/60 text-sm">Certificate</p>
+                    <p className={`font-semibold ${currentStudent.certificate ? 'text-green-400' : 'text-white'}`}>
+                      {currentStudent.certificate ? 'Available' : 'Pending'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white/10 backdrop-blur-lg rounded-xl p-4 text-white border border-white/10">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-purple-500/20 rounded-xl flex items-center justify-center text-2xl">
+                    📅
+                  </div>
+                  <div>
+                    <p className="text-white/60 text-sm">Session</p>
+                    <p className="font-semibold text-sm">{currentStudent.session || 'N/A'}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white/10 backdrop-blur-lg rounded-xl p-4 text-white border border-white/10">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-yellow-500/20 rounded-xl flex items-center justify-center text-2xl">
+                    {currentStudent.isLeader ? '⭐' : '👤'}
+                  </div>
+                  <div>
+                    <p className="text-white/60 text-sm">Status</p>
+                    <p className="font-semibold text-yellow-400">{currentStudent.isLeader ? 'Leader' : 'Member'}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Profile Card */}
+            <div className="bg-white/10 backdrop-blur-lg rounded-2xl overflow-hidden border border-white/10">
+              <div className="bg-gradient-to-r from-blue-600/50 to-purple-600/50 p-6">
+                <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                  <span>👤</span> My Profile
+                </h3>
+              </div>
+              <div className="p-6">
+                <div className="flex flex-col md:flex-row gap-6">
+                  {/* Profile Picture */}
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="relative">
+                      {currentStudent.profilePicture ? (
+                        <img 
+                          src={currentStudent.profilePicture} 
+                          alt="Profile" 
+                          className="w-32 h-32 rounded-2xl object-cover border-4 border-white/20"
+                        />
+                      ) : (
+                        <div className="w-32 h-32 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-4xl">
+                          {getInitials()}
+                        </div>
+                      )}
+                      <label className="absolute bottom-2 right-2 p-2 bg-blue-600 rounded-full cursor-pointer hover:bg-blue-700 transition-all shadow-lg">
+                        <span className="text-white text-sm">📷</span>
+                        <input type="file" accept="image/*" className="hidden" onChange={handleProfilePictureChange} />
+                      </label>
+                    </div>
+                    <p className="text-white/60 text-xs">Click 📷 to change photo</p>
+                  </div>
+
+                  {/* Profile Details */}
+                  <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <ProfileField label="Full Name" value={`${currentStudent.firstName} ${currentStudent.lastName}`} icon="👤" />
+                    <ProfileField label="Registration No." value={currentStudent.registrationNumber} icon="🔢" />
+                    <ProfileField label="Email" value={currentStudent.email} icon="📧" />
+                    <ProfileField label="Phone" value={currentStudent.phone} icon="📱" />
+                    <ProfileField label="Gender" value={currentStudent.gender} icon="⚧" />
+                    <ProfileField label="Country" value={currentStudent.country || 'N/A'} icon="🌍" />
+                    <ProfileField label="State" value={currentStudent.state || 'N/A'} icon="📍" />
+                    <ProfileField label="Drama Group" value={currentStudent.dramaGroup || 'N/A'} icon="🎭" />
+                    <ProfileField label="Position" value={currentStudent.position || 'N/A'} icon="🏅" />
+                    <ProfileField label="Program" value={currentStudent.program} icon="📚" />
+                  </div>
+                </div>
+
+                {/* Statement of Purpose */}
+                {currentStudent.statementOfPurpose && (
+                  <div className="mt-6 p-4 bg-white/5 rounded-xl border border-white/10">
+                    <p className="text-white/60 text-sm mb-2 flex items-center gap-2">
+                      <span>📝</span> Statement of Purpose
+                    </p>
+                    <p className="text-white">{currentStudent.statementOfPurpose}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Quick Actions */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <QuickAction 
+                icon="💳" 
+                label="Make Payment" 
+                onClick={() => setActiveTab('payment')} 
+                color="from-green-500 to-emerald-600"
+              />
+              <QuickAction 
+                icon="📚" 
+                label="View Materials" 
+                onClick={() => setActiveTab('materials')} 
+                color="from-blue-500 to-indigo-600"
+              />
+              <QuickAction 
+                icon="🎓" 
+                label="Certificate" 
+                onClick={() => setActiveTab('certificate')} 
+                color="from-purple-500 to-pink-600"
+              />
+              <QuickAction 
+                icon="💬" 
+                label="Group Chat" 
+                onClick={() => setShowGroupChat(true)} 
+                color="from-orange-500 to-red-600"
+              />
             </div>
           </div>
         )}
 
         {/* Materials Tab */}
         {activeTab === 'materials' && (
-          <div className="bg-white rounded-xl shadow-lg p-6">
-            <h2 className="text-xl font-bold mb-4">Learning Materials</h2>
-            {studentMaterials.length === 0 ? (
-              <div className="text-center py-12 text-gray-500">
-                <span className="text-4xl mb-4 block">📚</span>
-                <p>No materials available yet. Check back later!</p>
+          <div className="space-y-6 animate-fadeIn">
+            <div className="bg-white/10 backdrop-blur-lg rounded-2xl overflow-hidden border border-white/10">
+              <div className="bg-gradient-to-r from-blue-600/50 to-purple-600/50 p-6">
+                <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                  <span>📚</span> Learning Materials
+                </h3>
+                <p className="text-blue-100 mt-1">Access your course materials and resources</p>
               </div>
-            ) : (
-              <div className="space-y-4">
-                {studentMaterials.map((material: Material) => (
-                  <div key={material.id} className="border rounded-lg p-4 flex justify-between items-center hover:bg-gray-50">
-                    <div>
-                      <h3 className="font-medium">{material.title}</h3>
-                      <p className="text-sm text-gray-500">{material.description}</p>
-                      <p className="text-xs text-gray-400 mt-1">
-                        {material.fileName} • {(material.fileSize / 1024 / 1024).toFixed(2)} MB
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => downloadFile(material.fileData, material.fileName)}
-                      className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-                    >
-                      Download
-                    </button>
-                  </div>
-                ))}
+              <div className="p-6">
+                <div className="text-center py-12 text-white/60">
+                  <span className="text-6xl mb-4 block">📂</span>
+                  <p className="text-lg">No materials uploaded yet</p>
+                  <p className="text-sm mt-2">Check back later for new content</p>
+                </div>
               </div>
-            )}
+            </div>
           </div>
         )}
 
         {/* Payment Tab */}
         {activeTab === 'payment' && (
-          <div className="bg-white rounded-xl shadow-lg p-6">
-            <h2 className="text-xl font-bold mb-4">Payment</h2>
-            
+          <div className="space-y-6 animate-fadeIn">
             {/* Payment Status */}
-            <div className="mb-6">
-              <div className={`inline-flex items-center px-4 py-2 rounded-full text-lg font-bold ${
-                currentStudent.paymentStatus === 'approved' 
-                  ? 'bg-green-100 text-green-800' 
-                  : 'bg-red-100 text-red-800'
-              }`}>
-                {currentStudent.paymentStatus === 'approved' ? '✓ Verified' : '✗ Not Verified'}
+            <div className={`rounded-2xl p-6 ${
+              isPaymentApproved 
+                ? 'bg-gradient-to-r from-green-600 to-emerald-600' 
+                : isPaymentPending
+                ? 'bg-gradient-to-r from-yellow-600 to-orange-600'
+                : 'bg-gradient-to-r from-blue-600 to-indigo-600'
+            }`}>
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center text-3xl">
+                  {isPaymentApproved ? '✅' : isPaymentPending ? '⏳' : '💳'}
+                </div>
+                <div className="text-white">
+                  <h3 className="text-xl font-bold">
+                    {isPaymentApproved 
+                      ? 'Payment Verified!' 
+                      : isPaymentPending
+                      ? 'Payment Under Review'
+                      : 'Payment Required'}
+                  </h3>
+                  <p className="text-white/80">
+                    {isPaymentApproved 
+                      ? 'Your certificate is now unlocked.' 
+                      : isPaymentPending
+                      ? 'Your payment receipt is being reviewed by admin.'
+                      : 'Upload your payment receipt to proceed.'}
+                  </p>
+                </div>
               </div>
             </div>
 
-            {/* Payment Status Messages */}
-            {currentStudent.paymentStatus === 'approved' && (
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
-                <p className="text-green-800 font-medium">✓ Your payment has been verified! You can now download your certificate.</p>
+            {/* Bank Details */}
+            <div className="bg-white/10 backdrop-blur-lg rounded-2xl overflow-hidden border border-white/10">
+              <div className="bg-gradient-to-r from-green-600/50 to-teal-600/50 p-6">
+                <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                  <span>🏦</span> Bank Account Details
+                </h3>
               </div>
-            )}
-
-            {currentStudent.paymentStatus === 'pending' && (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-                <p className="text-yellow-800 font-medium">⏳ Payment receipt submitted. Awaiting admin verification.</p>
-              </div>
-            )}
-
-            {currentStudent.paymentStatus === 'rejected' && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-                <p className="text-red-800 font-medium">✗ Payment rejected. Please upload a valid receipt.</p>
-              </div>
-            )}
-
-            {/* Upload Receipt Section */}
-            {currentStudent.paymentStatus !== 'approved' && (
-              <div className="mb-6">
-                <h3 className="font-medium text-gray-700 mb-3">Upload Payment Receipt</h3>
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                  {receiptFile ? (
+              <div className="p-6">
+                <div className="grid gap-4">
+                  <div className="bg-white/5 rounded-xl p-4 flex items-center justify-between">
                     <div>
-                      <p className="text-green-600 font-medium mb-2">✓ {receiptFileName}</p>
-                      <div className="flex justify-center space-x-3">
-                        <button
-                          onClick={handleUploadReceipt}
-                          className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700"
-                        >
-                          Submit Receipt
-                        </button>
-                        <button
-                          onClick={() => { setReceiptFile(null); setReceiptFileName(''); }}
-                          className="bg-gray-200 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-300"
-                        >
-                          Cancel
-                        </button>
-                      </div>
+                      <p className="text-white/60 text-sm">Bank Name</p>
+                      <p className="text-white text-lg font-semibold">Opay</p>
                     </div>
-                  ) : (
+                    <span className="text-3xl">🏦</span>
+                  </div>
+                  <div className="bg-white/5 rounded-xl p-4 flex items-center justify-between">
                     <div>
-                      <span className="text-4xl mb-3 block">📤</span>
-                      <label className="cursor-pointer">
-                        <span className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 inline-block">
-                          Upload Receipt Here
-                        </span>
-                        <input
-                          type="file"
-                          accept="image/*,.pdf"
-                          onChange={handleReceiptChange}
-                          className="hidden"
+                      <p className="text-white/60 text-sm">Account Number</p>
+                      <p className="text-white text-2xl font-bold tracking-wider">8080498742</p>
+                    </div>
+                    <button 
+                      onClick={() => navigator.clipboard.writeText('8080498742')}
+                      className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-all"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                  <div className="bg-white/5 rounded-xl p-4 flex items-center justify-between">
+                    <div>
+                      <p className="text-white/60 text-sm">Account Name</p>
+                      <p className="text-white text-lg font-semibold">LIGHT HOUSE ACADEMY</p>
+                    </div>
+                    <span className="text-3xl">👤</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Upload Receipt */}
+            {!isPaymentApproved && (
+              <div className="bg-white/10 backdrop-blur-lg rounded-2xl overflow-hidden border border-white/10">
+                <div className="bg-gradient-to-r from-purple-600/50 to-pink-600/50 p-6">
+                  <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                    <span>📤</span> Upload Payment Receipt
+                  </h3>
+                </div>
+                <div className="p-6">
+                  <div className="border-2 border-dashed border-white/20 rounded-xl p-8 text-center hover:border-white/40 transition-all">
+                    {receiptFile ? (
+                      <div className="space-y-4">
+                        <div className="w-20 h-20 mx-auto bg-green-500/20 rounded-2xl flex items-center justify-center text-4xl">
+                          ✅
+                        </div>
+                        <p className="text-white font-medium">{receiptFileName}</p>
+                        <div className="flex gap-3 justify-center">
+                          <button
+                            onClick={submitReceipt}
+                            className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-all"
+                          >
+                            Submit Receipt
+                          </button>
+                          <button
+                            onClick={() => { setReceiptFile(null); setReceiptFileName(''); }}
+                            className="px-6 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-all"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <label className="cursor-pointer block">
+                        <div className="w-20 h-20 mx-auto bg-white/10 rounded-2xl flex items-center justify-center text-4xl mb-4">
+                          📤
+                        </div>
+                        <p className="text-white font-medium mb-2">Click to upload receipt</p>
+                        <p className="text-white/60 text-sm">Supports: JPG, PNG, PDF (Max 10MB)</p>
+                        <input 
+                          type="file" 
+                          accept="image/*,.pdf" 
+                          className="hidden" 
+                          onChange={handleReceiptUpload}
                         />
                       </label>
-                      <p className="text-sm text-gray-500 mt-2">Accepts images (JPG, PNG) or PDF. Max 10MB</p>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               </div>
             )}
-
-            {/* Bank Account Details */}
-            <div className="bg-gradient-to-r from-green-500 to-emerald-600 rounded-xl p-6 text-white">
-              <h3 className="text-lg font-bold mb-4">💳 Bank Account Details</h3>
-              <div className="space-y-3">
-                <div className="flex justify-between items-center py-2 border-b border-green-400">
-                  <span className="opacity-80">Bank</span>
-                  <span className="font-bold text-xl">Opay</span>
-                </div>
-                <div className="flex justify-between items-center py-2 border-b border-green-400">
-                  <span className="opacity-80">Account Number</span>
-                  <span className="font-bold text-xl tracking-wider">8080498742</span>
-                </div>
-                <div className="flex justify-between items-center py-2">
-                  <span className="opacity-80">Account Name</span>
-                  <span className="font-bold text-lg">Light House Academy</span>
-                </div>
-              </div>
-            </div>
           </div>
         )}
 
         {/* Certificate Tab */}
         {activeTab === 'certificate' && (
-          <div className="bg-white rounded-xl shadow-lg p-6">
-            <h2 className="text-xl font-bold mb-4">Certificate</h2>
-            
-            {/* Verification Status */}
-            <div className="mb-6">
-              <div className={`inline-flex items-center px-4 py-2 rounded-full text-lg font-bold ${
-                currentStudent.paymentStatus === 'approved' 
-                  ? 'bg-green-100 text-green-800' 
-                  : 'bg-red-100 text-red-800'
-              }`}>
-                {currentStudent.paymentStatus === 'approved' ? '✓ Verified' : '✗ Not Verified'}
+          <div className="space-y-6 animate-fadeIn">
+            <div className="bg-white/10 backdrop-blur-lg rounded-2xl overflow-hidden border border-white/10">
+              <div className="bg-gradient-to-r from-yellow-600/50 to-orange-600/50 p-6">
+                <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                  <span>🎓</span> Your Certificate
+                </h3>
               </div>
-            </div>
-
-            {/* Certificate Content */}
-            {!currentStudent.certificate ? (
-              <div className="text-center py-12 bg-gray-50 rounded-lg">
-                <span className="text-6xl mb-4 block">🎓</span>
-                <h3 className="text-xl font-bold text-gray-700 mb-2">Certificate Not Yet Available</h3>
-                <p className="text-gray-500">Please try again later.</p>
+              <div className="p-8">
+                {currentStudent.certificate && currentStudent.certificateUnlocked ? (
+                  <div className="text-center space-y-6">
+                    <div className="w-24 h-24 mx-auto bg-gradient-to-br from-yellow-400 to-orange-500 rounded-2xl flex items-center justify-center text-5xl animate-bounce">
+                      🎓
+                    </div>
+                    <div>
+                      <h4 className="text-2xl font-bold text-white mb-2">Congratulations! 🎉</h4>
+                      <p className="text-white/70">Your certificate is ready for download</p>
+                    </div>
+                    <a
+                      href={currentStudent.certificate}
+                      download={`LHA_Certificate_${currentStudent.registrationNumber}.pdf`}
+                      className="inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-bold text-lg hover:shadow-lg hover:scale-105 transition-all"
+                    >
+                      <span className="text-2xl">📥</span>
+                      Download Certificate
+                    </a>
+                  </div>
+                ) : currentStudent.certificate ? (
+                  <div className="text-center space-y-6">
+                    <div className="w-24 h-24 mx-auto bg-yellow-500/20 rounded-2xl flex items-center justify-center text-5xl">
+                      🔒
+                    </div>
+                    <div>
+                      <h4 className="text-xl font-bold text-white mb-2">Certificate Locked</h4>
+                      <p className="text-white/70">Complete your payment to unlock your certificate</p>
+                    </div>
+                    <button
+                      onClick={() => setActiveTab('payment')}
+                      className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-all"
+                    >
+                      <span>💳</span> Go to Payment
+                    </button>
+                  </div>
+                ) : (
+                  <div className="text-center space-y-6">
+                    <div className="w-24 h-24 mx-auto bg-white/10 rounded-2xl flex items-center justify-center text-5xl">
+                      ⏳
+                    </div>
+                    <div>
+                      <h4 className="text-xl font-bold text-white mb-2">Certificate Not Yet Available</h4>
+                      <p className="text-white/70">Your certificate will be available after the training is complete</p>
+                    </div>
+                  </div>
+                )}
               </div>
-            ) : currentStudent.paymentStatus !== 'approved' ? (
-              <div className="text-center py-12 bg-yellow-50 rounded-lg">
-                <span className="text-6xl mb-4 block">🔒</span>
-                <h3 className="text-xl font-bold text-yellow-700 mb-2">Certificate Locked</h3>
-                <p className="text-yellow-600 mb-4">Please complete payment verification to unlock your certificate.</p>
-                <button
-                  onClick={() => setActiveTab('payment')}
-                  className="bg-yellow-600 text-white px-6 py-2 rounded-lg hover:bg-yellow-700"
-                >
-                  Go to Payment
-                </button>
-              </div>
-            ) : (
-              <div className="text-center py-12 bg-green-50 rounded-lg">
-                <div className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce">
-                  <span className="text-4xl">🎉</span>
-                </div>
-                <h3 className="text-2xl font-bold text-green-700 mb-2">Congratulations!</h3>
-                <p className="text-green-600 mb-6">Your certificate is ready for download.</p>
-                <button
-                  onClick={() => downloadFile(currentStudent.certificate!, `Certificate_${currentStudent.registrationNumber}.pdf`)}
-                  className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-8 py-4 rounded-xl text-lg font-bold hover:from-green-600 hover:to-emerald-700 shadow-lg"
-                >
-                  📥 Download Certificate Now
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Join Class Tab */}
-        {activeTab === 'joinclass' && (
-          <div className="bg-white rounded-xl shadow-lg p-6">
-            <h2 className="text-xl font-bold mb-4">Join Class</h2>
-            <div className="bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl p-8 text-white text-center">
-              <span className="text-6xl mb-4 block">💬</span>
-              <h3 className="text-2xl font-bold mb-4">Join Our Training Group</h3>
-              <div className="bg-white/20 rounded-lg p-4 mb-6">
-                <p className="text-lg">
-                  The training will take place on a closed WhatsApp group.
-                </p>
-              </div>
-              <a
-                href="https://t.me/+k7GOXSYPzYozNjM0"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-block bg-white text-blue-600 px-8 py-4 rounded-xl text-lg font-bold hover:bg-blue-50 transition-colors shadow-lg"
-              >
-                🚀 Join Now
-              </a>
             </div>
           </div>
         )}
 
         {/* Messages Tab */}
         {activeTab === 'messages' && (
-          <div className="bg-white rounded-xl shadow-lg overflow-hidden" style={{ height: '500px' }}>
-            <div className="bg-blue-600 text-white p-4">
-              <h2 className="font-bold">Chat with Admin</h2>
-            </div>
-            
-            {/* Messages List */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3" style={{ height: '380px' }}>
-              {studentMessages.length === 0 ? (
-                <div className="text-center py-12 text-gray-500">
-                  <span className="text-4xl mb-4 block">💬</span>
-                  <p>No messages yet. Start a conversation!</p>
-                </div>
-              ) : (
-                studentMessages.map((msg: Message) => (
-                  <div
-                    key={msg.id}
-                    className={`flex ${msg.senderType === 'student' ? 'justify-end' : 'justify-start'}`}
-                  >
-                    <div
-                      className={`max-w-xs px-4 py-2 rounded-lg ${
-                        msg.senderType === 'student'
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-gray-200 text-gray-800'
-                      }`}
-                    >
-                      <p>{msg.content}</p>
-                      <p className={`text-xs mt-1 ${msg.senderType === 'student' ? 'text-blue-200' : 'text-gray-500'}`}>
-                        {new Date(msg.timestamp).toLocaleTimeString()}
-                      </p>
-                    </div>
+          <div className="space-y-6 animate-fadeIn">
+            <div className="bg-white/10 backdrop-blur-lg rounded-2xl overflow-hidden border border-white/10 h-[600px] flex flex-col">
+              <div className="bg-gradient-to-r from-indigo-600/50 to-purple-600/50 p-4 flex items-center justify-between">
+                <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                  <span>💬</span> Messages with Admin
+                </h3>
+                <span className="px-3 py-1 bg-white/20 rounded-full text-white text-sm">
+                  {studentMessages.length} messages
+                </span>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                {studentMessages.length === 0 ? (
+                  <div className="text-center py-12 text-white/60">
+                    <span className="text-6xl mb-4 block">💭</span>
+                    <p>No messages yet. Start a conversation!</p>
                   </div>
-                ))
-              )}
-              <div ref={messagesEndRef} />
-            </div>
-
-            {/* Message Input */}
-            <div className="p-4 border-t flex space-x-2">
-              <input
-                type="text"
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                placeholder="Type a message..."
-                className="flex-1 border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <button
-                onClick={handleSendMessage}
-                className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
-              >
-                Send
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* AI Assistant Tab */}
-        {activeTab === 'ai' && (
-          <div className="max-w-3xl mx-auto">
-            {siteSettings.aiApiKey ? (
-              <AIChat
-                apiKey={siteSettings.aiApiKey}
-                studentName={`${currentStudent.firstName} ${currentStudent.lastName}`}
-                studentProgram={currentStudent.program}
-                studentSession={currentStudent.session}
-              />
-            ) : (
-              <div className="bg-white rounded-xl shadow-lg p-8 text-center">
-                <div className="w-20 h-20 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                  <span className="text-4xl">🤖</span>
-                </div>
-                <h2 className="text-2xl font-bold text-gray-800 mb-4">AI Assistant Coming Soon!</h2>
-                <p className="text-gray-600 mb-6">
-                  The AI learning assistant is being configured by the administrator. 
-                  Please check back later or contact support for assistance.
-                </p>
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <p className="text-blue-800 text-sm">
-                    <strong>💡 Tip:</strong> In the meantime, you can use the Messages tab 
-                    to chat with the Student Coordinator for any questions.
-                  </p>
+                ) : (
+                  studentMessages.map((msg, idx) => (
+                    <div
+                      key={idx}
+                      className={`flex ${msg.senderType === 'student' ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div className={`max-w-[80%] rounded-2xl p-4 ${
+                        msg.senderType === 'student'
+                          ? 'bg-blue-600 text-white rounded-br-sm'
+                          : 'bg-white/20 text-white rounded-bl-sm'
+                      }`}>
+                        <p>{msg.content}</p>
+                        <p className="text-xs mt-2 opacity-60">
+                          {new Date(msg.timestamp).toLocaleTimeString()}
+                        </p>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+              
+              <div className="p-4 border-t border-white/10">
+                <div className="flex gap-3">
+                  <input
+                    type="text"
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && sendMessageToAdmin()}
+                    placeholder="Type your message..."
+                    className="flex-1 px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <button
+                    onClick={sendMessageToAdmin}
+                    disabled={!newMessage.trim()}
+                    className="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-medium transition-all flex items-center gap-2"
+                  >
+                    <span>📤</span>
+                    <span className="hidden sm:inline">Send</span>
+                  </button>
                 </div>
               </div>
-            )}
+            </div>
           </div>
         )}
-      </div>
 
-      {/* Group Chat */}
-      <GroupChat
-        senderId={currentStudent.id}
-        senderName={`${currentStudent.firstName} ${currentStudent.lastName}`}
-        senderType={currentStudent.isLeader ? 'leader' : 'student'}
-        senderPhoto={currentStudent.profilePicture}
-      />
+        {/* Join Class Tab */}
+        {activeTab === 'class' && (
+          <div className="space-y-6 animate-fadeIn">
+            <div className="bg-white/10 backdrop-blur-lg rounded-2xl overflow-hidden border border-white/10">
+              <div className="bg-gradient-to-r from-green-600/50 to-teal-600/50 p-6">
+                <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                  <span>🎥</span> Join Class
+                </h3>
+              </div>
+              <div className="p-8 text-center space-y-6">
+                <div className="w-24 h-24 mx-auto bg-gradient-to-br from-green-500 to-teal-600 rounded-2xl flex items-center justify-center text-5xl animate-pulse">
+                  📱
+                </div>
+                <div>
+                  <h4 className="text-2xl font-bold text-white mb-2">WhatsApp/Telegram Group</h4>
+                  <p className="text-white/70 max-w-md mx-auto">
+                    The training will take place on a closed WhatsApp/Telegram group. Click the button below to join.
+                  </p>
+                </div>
+                <a
+                  href="https://t.me/+k7GOXSYPzYozNjM0"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-green-500 to-teal-600 text-white rounded-xl font-bold text-lg hover:shadow-lg hover:scale-105 transition-all"
+                >
+                  <span className="text-2xl">🚀</span>
+                  Join Now
+                </a>
+              </div>
+            </div>
 
-      {/* Photo Upload Modal */}
-      {showPhotoModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl max-w-md w-full p-6">
-            <h3 className="text-xl font-bold mb-4">Update Profile Photo</h3>
-            <div className="flex justify-center mb-4">
-              {newPhoto || currentStudent.profilePicture ? (
-                <img 
-                  src={newPhoto || currentStudent.profilePicture} 
-                  alt="Preview" 
-                  className="w-32 h-32 rounded-full object-cover"
-                />
+            {/* Staff Contacts */}
+            <div className="bg-white/10 backdrop-blur-lg rounded-2xl overflow-hidden border border-white/10">
+              <div className="bg-gradient-to-r from-blue-600/50 to-indigo-600/50 p-6">
+                <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                  <span>📞</span> Contact Staff
+                </h3>
+              </div>
+              <div className="p-6 grid gap-4 md:grid-cols-3">
+                {/* Secretary Card */}
+                <div className="bg-white/5 rounded-xl p-4 border border-white/10 hover:bg-white/10 transition-all">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="relative">
+                      {staffContacts.secretary.profilePicture ? (
+                        <img 
+                          src={staffContacts.secretary.profilePicture} 
+                          alt="Secretary" 
+                          className="w-12 h-12 rounded-full object-cover border-2 border-blue-400"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xl">
+                          📧
+                        </div>
+                      )}
+                      {/* Online/Offline Indicator */}
+                      <div className={`absolute bottom-0 right-0 w-4 h-4 rounded-full border-2 border-slate-800 ${staffOnlineStatus?.secretary ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                    </div>
+                    <div>
+                      <p className="text-white font-semibold">{staffContacts.secretary.name}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-white/60 text-sm">Secretary</p>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${staffOnlineStatus?.secretary ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                          {staffOnlineStatus?.secretary ? '🟢 Online' : '🔴 Offline'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  {staffContacts.secretary.occupation && (
+                    <p className="text-purple-300 text-sm mb-1">💼 {staffContacts.secretary.occupation}</p>
+                  )}
+                  {staffContacts.secretary.school && (
+                    <p className="text-yellow-300 text-sm mb-2">🏫 {staffContacts.secretary.school}</p>
+                  )}
+                  <div className="space-y-2 text-sm border-t border-white/10 pt-2 mt-2">
+                    <p className="text-blue-300 flex items-center gap-2">
+                      <span>📧</span> {staffContacts.secretary.email}
+                    </p>
+                    <p className="text-green-300 flex items-center gap-2">
+                      <span>📱</span> {staffContacts.secretary.phone}
+                    </p>
+                  </div>
+                </div>
+
+                {/* SCO Card */}
+                <div className="bg-white/5 rounded-xl p-4 border border-white/10 hover:bg-white/10 transition-all">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="relative">
+                      {staffContacts.sco.profilePicture ? (
+                        <img 
+                          src={staffContacts.sco.profilePicture} 
+                          alt="SCO" 
+                          className="w-12 h-12 rounded-full object-cover border-2 border-green-400"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-green-500 to-teal-600 flex items-center justify-center text-white text-xl">
+                          👥
+                        </div>
+                      )}
+                      {/* Online/Offline Indicator */}
+                      <div className={`absolute bottom-0 right-0 w-4 h-4 rounded-full border-2 border-slate-800 ${staffOnlineStatus?.sco ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                    </div>
+                    <div>
+                      <p className="text-white font-semibold">{staffContacts.sco.name}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-white/60 text-sm">Student Coordinator</p>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${staffOnlineStatus?.sco ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                          {staffOnlineStatus?.sco ? '🟢 Online' : '🔴 Offline'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  {staffContacts.sco.occupation && (
+                    <p className="text-purple-300 text-sm mb-1">💼 {staffContacts.sco.occupation}</p>
+                  )}
+                  {staffContacts.sco.school && (
+                    <p className="text-yellow-300 text-sm mb-2">🏫 {staffContacts.sco.school}</p>
+                  )}
+                  <div className="space-y-2 text-sm border-t border-white/10 pt-2 mt-2">
+                    <p className="text-blue-300 flex items-center gap-2">
+                      <span>📧</span> {staffContacts.sco.email}
+                    </p>
+                    <p className="text-green-300 flex items-center gap-2">
+                      <span>📱</span> {staffContacts.sco.phone}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Admin Card */}
+                <div className="bg-white/5 rounded-xl p-4 border border-white/10 hover:bg-white/10 transition-all">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="relative">
+                      {staffContacts.admin.profilePicture ? (
+                        <img 
+                          src={staffContacts.admin.profilePicture} 
+                          alt="Admin" 
+                          className="w-12 h-12 rounded-full object-cover border-2 border-red-400"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-red-500 to-orange-600 flex items-center justify-center text-white text-xl">
+                          🛡️
+                        </div>
+                      )}
+                      {/* Online/Offline Indicator */}
+                      <div className={`absolute bottom-0 right-0 w-4 h-4 rounded-full border-2 border-slate-800 ${staffOnlineStatus?.admin ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                    </div>
+                    <div>
+                      <p className="text-white font-semibold">{staffContacts.admin.name}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-white/60 text-sm">Administrator</p>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${staffOnlineStatus?.admin ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                          {staffOnlineStatus?.admin ? '🟢 Online' : '🔴 Offline'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  {staffContacts.admin.occupation && (
+                    <p className="text-purple-300 text-sm mb-1">💼 {staffContacts.admin.occupation}</p>
+                  )}
+                  {staffContacts.admin.school && (
+                    <p className="text-yellow-300 text-sm mb-2">🏫 {staffContacts.admin.school}</p>
+                  )}
+                  <div className="space-y-2 text-sm border-t border-white/10 pt-2 mt-2">
+                    <p className="text-blue-300 flex items-center gap-2">
+                      <span>📧</span> {staffContacts.admin.email}
+                    </p>
+                    <p className="text-green-300 flex items-center gap-2">
+                      <span>📱</span> {staffContacts.admin.phone}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Settings Tab */}
+        {activeTab === 'settings' && (
+          <div className="space-y-6 animate-fadeIn">
+            {/* Notification Settings */}
+            <div className="bg-white/10 backdrop-blur-lg rounded-2xl overflow-hidden border border-white/10">
+              <div className="bg-gradient-to-r from-purple-600/50 to-pink-600/50 p-6">
+                <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                  <span>🔔</span> Notification Settings
+                </h3>
+              </div>
+              <div className="p-6 space-y-4">
+                <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl">
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">📱</span>
+                    <div>
+                      <p className="text-white font-medium">Push Notifications</p>
+                      <p className="text-white/60 text-sm">Receive notifications on your device</p>
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      checked={notifications.push}
+                      onChange={(e) => setNotifications({ ...notifications, push: e.target.checked })}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-white/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                  </label>
+                </div>
+
+                <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl">
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">📧</span>
+                    <div>
+                      <p className="text-white font-medium">Email Notifications</p>
+                      <p className="text-white/60 text-sm">Receive updates via email</p>
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      checked={notifications.email}
+                      onChange={(e) => setNotifications({ ...notifications, email: e.target.checked })}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-white/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            {/* Account Info */}
+            <div className="bg-white/10 backdrop-blur-lg rounded-2xl overflow-hidden border border-white/10">
+              <div className="bg-gradient-to-r from-indigo-600/50 to-blue-600/50 p-6">
+                <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                  <span>🔐</span> Account Information
+                </h3>
+              </div>
+              <div className="p-6 space-y-4">
+                <div className="p-4 bg-white/5 rounded-xl">
+                  <p className="text-white/60 text-sm">Registration Number (Your Login Password)</p>
+                  <p className="text-white text-lg font-mono mt-1">{currentStudent.registrationNumber}</p>
+                </div>
+                <div className="p-4 bg-white/5 rounded-xl">
+                  <p className="text-white/60 text-sm">Registered On</p>
+                  <p className="text-white text-lg mt-1">{new Date(currentStudent.registrationDate).toLocaleDateString()}</p>
+                </div>
+                <div className="p-4 bg-white/5 rounded-xl">
+                  <p className="text-white/60 text-sm">Account Status</p>
+                  <p className="text-green-400 text-lg mt-1 capitalize">{currentStudent.status}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Danger Zone */}
+            <div className="bg-red-500/10 backdrop-blur-lg rounded-2xl overflow-hidden border border-red-500/20">
+              <div className="bg-red-600/30 p-6">
+                <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                  <span>⚠️</span> Danger Zone
+                </h3>
+              </div>
+              <div className="p-6">
+                <button
+                  onClick={handleLogout}
+                  className="w-full px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-medium transition-all flex items-center justify-center gap-2"
+                >
+                  <span>🚪</span> Logout from Account
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </main>
+
+      {/* Profile Modal */}
+      {showProfileModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowProfileModal(false)}>
+          <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-6 max-w-md w-full border border-white/10" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-white">Edit Profile Picture</h3>
+              <button onClick={() => setShowProfileModal(false)} className="text-white/60 hover:text-white text-2xl">×</button>
+            </div>
+            <div className="flex flex-col items-center gap-4">
+              {currentStudent.profilePicture ? (
+                <img src={currentStudent.profilePicture} alt="Profile" className="w-32 h-32 rounded-2xl object-cover border-4 border-white/20" />
               ) : (
-                <div className="w-32 h-32 rounded-full bg-blue-100 flex items-center justify-center text-4xl font-bold text-blue-600">
-                  {currentStudent.firstName[0]}{currentStudent.lastName[0]}
+                <div className="w-32 h-32 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-4xl">
+                  {getInitials()}
                 </div>
               )}
-            </div>
-            <div className="flex justify-center mb-4">
-              <label className="bg-blue-600 text-white px-4 py-2 rounded-lg cursor-pointer hover:bg-blue-700">
-                Choose Image
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handlePhotoChange}
-                  className="hidden"
-                />
+              <label className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium cursor-pointer transition-all">
+                <span>📷 Choose New Photo</span>
+                <input type="file" accept="image/*" className="hidden" onChange={handleProfilePictureChange} />
               </label>
-            </div>
-            <div className="flex justify-end space-x-3">
-              <button
-                onClick={() => { setShowPhotoModal(false); setNewPhoto(null); }}
-                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSavePhoto}
-                disabled={!newPhoto}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
-              >
-                Save
-              </button>
             </div>
           </div>
         </div>
       )}
+
+      {/* Group Chat Modal */}
+      {showGroupChat && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowGroupChat(false)}>
+          <div className="bg-slate-900 rounded-2xl w-full max-w-2xl h-[80vh] overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 border-b border-white/10 bg-gradient-to-r from-blue-600 to-purple-600">
+              <h3 className="text-xl font-bold text-white">💬 Group Chat</h3>
+              <button onClick={() => setShowGroupChat(false)} className="text-white/80 hover:text-white text-2xl">×</button>
+            </div>
+            <div className="h-[calc(100%-60px)]">
+              <GroupChat embedded={true} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CSS Animations */}
+      <style>{`
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fadeIn {
+          animation: fadeIn 0.3s ease-out;
+        }
+      `}</style>
     </div>
   );
 };
+
+// Helper Components
+const ProfileField = ({ label, value, icon }: { label: string; value: string; icon: string }) => (
+  <div className="bg-white/5 rounded-xl p-3 border border-white/10">
+    <p className="text-white/60 text-xs flex items-center gap-1">
+      <span>{icon}</span> {label}
+    </p>
+    <p className="text-white font-medium mt-1 truncate">{value}</p>
+  </div>
+);
+
+const QuickAction = ({ icon, label, onClick, color }: { icon: string; label: string; onClick: () => void; color: string }) => (
+  <button
+    onClick={onClick}
+    className={`bg-gradient-to-r ${color} rounded-xl p-4 text-white hover:shadow-lg hover:scale-105 transition-all`}
+  >
+    <span className="text-3xl block mb-2">{icon}</span>
+    <p className="font-medium text-sm">{label}</p>
+  </button>
+);
 
 export default StudentPortal;

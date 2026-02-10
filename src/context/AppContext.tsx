@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase, isSupabaseConfigured } from '../supabase';
-import { Student, Session, Message, GroupMessage, Material, SiteSettings, StaffProfile, Feature } from '../types';
+import { Student, Session, Message, GroupMessage, Material, SiteSettings, StaffProfile, StaffOnlineStatus } from '../types';
 
 interface AuthState {
   isAuthenticated: boolean;
@@ -72,6 +72,10 @@ interface AppContextType {
   staffProfiles: StaffProfile[];
   updateStaffProfile: (id: string, data: Partial<StaffProfile>) => void;
   
+  // Staff Online Status
+  staffOnlineStatus: StaffOnlineStatus;
+  setStaffOnline: (role: 'admin' | 'secretary' | 'sco', online: boolean) => void;
+  
   // Leaders
   appointLeader: (studentId: string) => void;
   removeLeader: (studentId: string) => void;
@@ -90,9 +94,30 @@ const defaultSiteSettings: SiteSettings = {
   features: [],
   socialLinks: {},
   staffContacts: {
-    secretary: { name: 'Secretary', email: 'secretary@lighthouseacademy.com', phone: '+234 800 000 0001' },
-    sco: { name: 'Student Coordinator', email: 'sco@lighthouseacademy.com', phone: '+234 800 000 0002' },
-    admin: { name: 'Administrator', email: 'admin@lighthouseacademy.com', phone: '+234 800 000 0003' }
+    secretary: { 
+      name: 'Secretary', 
+      email: 'secretary@lighthouseacademy.com', 
+      phone: '+234 800 000 0001',
+      occupation: 'Administrative Officer',
+      school: 'Light House Academy',
+      profilePicture: undefined
+    },
+    sco: { 
+      name: 'Student Coordinator', 
+      email: 'sco@lighthouseacademy.com', 
+      phone: '+234 800 000 0002',
+      occupation: 'Student Coordinator',
+      school: 'Light House Academy',
+      profilePicture: undefined
+    },
+    admin: { 
+      name: 'Administrator', 
+      email: 'admin@lighthouseacademy.com', 
+      phone: '+234 800 000 0003',
+      occupation: 'System Administrator',
+      school: 'Light House Academy',
+      profilePicture: undefined
+    }
   }
 };
 
@@ -169,6 +194,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return saved ? JSON.parse(saved) : [];
   });
   
+  const [staffOnlineStatus, setStaffOnlineStatus] = useState<StaffOnlineStatus>(() => {
+    const saved = localStorage.getItem('lha_staff_online');
+    return saved ? JSON.parse(saved) : {
+      admin: false,
+      adminLastSeen: undefined,
+      secretary: false,
+      secretaryLastSeen: undefined,
+      sco: false,
+      scoLastSeen: undefined
+    };
+  });
+  
   const [auth, setAuth] = useState<AuthState>(() => {
     const saved = localStorage.getItem('lha_auth');
     return saved ? JSON.parse(saved) : { 
@@ -208,6 +245,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   useEffect(() => {
     localStorage.setItem('lha_staff_profiles', JSON.stringify(staffProfiles));
   }, [staffProfiles]);
+  
+  useEffect(() => {
+    localStorage.setItem('lha_staff_online', JSON.stringify(staffOnlineStatus));
+    // Sync to Supabase
+    if (isSupabaseConfigured()) {
+      syncToSupabase('staff_online', 'status', staffOnlineStatus);
+    }
+  }, [staffOnlineStatus]);
   
   useEffect(() => {
     localStorage.setItem('lha_auth', JSON.stringify(auth));
@@ -419,6 +464,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       registrationStatus: sessionData.registrationStatus || 'closed',
       price: sessionData.price || 'Free',
       description: sessionData.description,
+      flier: sessionData.flier,
+      tutors: sessionData.tutors || [],
       facilitators: sessionData.facilitators
     };
     setSessions(prev => [...prev, newSession]);
@@ -694,6 +741,27 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
+  // Staff Online Status function
+  const setStaffOnline = (role: 'admin' | 'secretary' | 'sco', online: boolean) => {
+    setStaffOnlineStatus(prev => {
+      const now = new Date().toISOString();
+      const update: Partial<StaffOnlineStatus> = {};
+      
+      if (role === 'admin') {
+        update.admin = online;
+        if (!online) update.adminLastSeen = now;
+      } else if (role === 'secretary') {
+        update.secretary = online;
+        if (!online) update.secretaryLastSeen = now;
+      } else if (role === 'sco') {
+        update.sco = online;
+        if (!online) update.scoLastSeen = now;
+      }
+      
+      return { ...prev, ...update };
+    });
+  };
+
   const value: AppContextType = {
     students,
     addStudent,
@@ -736,6 +804,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     updateSiteSettings,
     staffProfiles,
     updateStaffProfile,
+    staffOnlineStatus,
+    setStaffOnline,
     appointLeader,
     removeLeader,
     toggleLeader,
