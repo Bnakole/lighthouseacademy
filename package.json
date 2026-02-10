@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.73.0",
+    "@emailjs/browser": "^4.4.1",
     "@monaco-editor/react": "^4.7.0",
     "@supabase/supabase-js": "^2.95.3",
     "clsx": "2.1.1",
