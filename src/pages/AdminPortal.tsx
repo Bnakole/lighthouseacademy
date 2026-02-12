@@ -31,15 +31,58 @@ export function AdminPortal() {
   const [newSession, setNewSession] = useState<Partial<AcademySession>>({ name: '', description: '', price: 'Free', status: 'upcoming', facilitatorName: '', facilitatorImage: '' });
 
   const addSession = () => {
-    if (!newSession.name) return;
-    const s: AcademySession = { id: uuidv4(), name: newSession.name || '', description: newSession.description || '', price: newSession.price || 'Free', status: (newSession.status as AcademySession['status']) || 'upcoming', facilitatorName: newSession.facilitatorName || '', facilitatorImage: newSession.facilitatorImage || '', createdAt: new Date().toISOString() };
-    const all = getSessions(); all.push(s); saveSessions(all);
-    setNewSession({ name: '', description: '', price: 'Free', status: 'upcoming', facilitatorName: '', facilitatorImage: '' });
-    doRefresh();
+    try {
+      if (!newSession.name) return;
+      const s: AcademySession = {
+        id: uuidv4(),
+        name: newSession.name || '',
+        description: newSession.description || '',
+        price: newSession.price || 'Free',
+        status: (newSession.status as AcademySession['status']) || 'upcoming',
+        facilitatorName: newSession.facilitatorName || '',
+        facilitatorImage: newSession.facilitatorImage || '',
+        createdAt: new Date().toISOString()
+      };
+      const all = getSessions();
+      all.push(s);
+      saveSessions(all);
+      setNewSession({ name: '', description: '', price: 'Free', status: 'upcoming', facilitatorName: '', facilitatorImage: '' });
+      doRefresh();
+    } catch (error) {
+      console.error('Error adding session:', error);
+      alert('Error creating session. Please try again.');
+    }
   };
 
-  const updateSessionStatus = (id: string, status: AcademySession['status']) => { const all = getSessions(); const s = all.find(x => x.id === id); if (s) { s.status = status; saveSessions(all); doRefresh(); } };
-  const updateSessionPrice = (id: string, price: string) => { const all = getSessions(); const s = all.find(x => x.id === id); if (s) { s.price = price; saveSessions(all); doRefresh(); } };
+  const updateSessionStatus = (id: string, status: AcademySession['status']) => {
+    try {
+      const all = getSessions();
+      const s = all.find(x => x.id === id);
+      if (s) {
+        s.status = status;
+        saveSessions(all);
+        doRefresh();
+      }
+    } catch (error) {
+      console.error('Error updating session status:', error);
+      alert('Error updating session status. Please try again.');
+    }
+  };
+  
+  const updateSessionPrice = (id: string, price: string) => {
+    try {
+      const all = getSessions();
+      const s = all.find(x => x.id === id);
+      if (s) {
+        s.price = price;
+        saveSessions(all);
+        doRefresh();
+      }
+    } catch (error) {
+      console.error('Error updating session price:', error);
+      alert('Error updating session price. Please try again.');
+    }
+  };
 
   const uploadMaterial = async (sessionId: string, file: File) => {
     const data = await fileToBase64(file);
@@ -52,51 +95,94 @@ export function AdminPortal() {
     if (reg) { reg.certificateFile = data; saveSessionRegistrations(allRegs); doRefresh(); }
   };
 
-  const unlockCertificate = (studentId: string, sessionId: string) => { const allRegs = getSessionRegistrations(); const reg = allRegs.find(r => r.studentId === studentId && r.sessionId === sessionId); if (reg) { reg.certificateUnlocked = true; saveSessionRegistrations(allRegs); doRefresh(); } };
-  const verifyPayment = (studentId: string, sessionId: string) => { 
-    const allRegs = getSessionRegistrations(); 
-    const reg = allRegs.find(r => r.studentId === studentId && r.sessionId === sessionId); 
-    if (reg) { 
-      reg.paymentVerified = true; 
-      saveSessionRegistrations(allRegs); 
-      
-      // Also update student payment status
-      const allStudents = getStudents();
-      const student = allStudents.find(s => s.id === studentId);
-      if (student) {
-        student.paymentStatus = 'verified';
-        saveStudents(allStudents);
+  const unlockCertificate = (studentId: string, sessionId: string) => {
+    try {
+      const allRegs = getSessionRegistrations();
+      const reg = allRegs.find(r => r.studentId === studentId && r.sessionId === sessionId);
+      if (reg) {
+        reg.certificateUnlocked = true;
+        saveSessionRegistrations(allRegs);
+        doRefresh();
       }
-      doRefresh(); 
-    } 
+    } catch (error) {
+      console.error('Error unlocking certificate:', error);
+      alert('Error unlocking certificate. Please try again.');
+    }
+  };
+  const verifyPayment = (studentId: string, sessionId: string) => {
+    try {
+      const allRegs = getSessionRegistrations();
+      const reg = allRegs.find(r => r.studentId === studentId && r.sessionId === sessionId);
+      if (reg) {
+        reg.paymentVerified = true;
+        saveSessionRegistrations(allRegs);
+        
+        // Also update student payment status
+        const allStudents = getStudents();
+        const student = allStudents.find(s => s.id === studentId);
+        if (student) {
+          student.paymentStatus = 'verified';
+          saveStudents(allStudents);
+        }
+        doRefresh();
+      }
+    } catch (error) {
+      console.error('Error verifying payment:', error);
+      alert('Error verifying payment. Please try again.');
+    }
   };
   
   const approveRegistration = (studentId: string) => {
-    const all = getStudents();
-    const student = all.find(s => s.id === studentId);
-    if (student) {
-      student.registrationApproved = true;
-      // Auto-verify payment for free sessions
-      const studentSessions = sessions.filter(s => student.sessions.includes(s.id));
-      if (studentSessions.every(s => s.price === 'Free')) {
-        student.paymentStatus = 'verified';
+    try {
+      const all = getStudents();
+      const student = all.find(s => s.id === studentId);
+      if (student) {
+        student.registrationApproved = true;
+        student.approvedBy = 'Admin';
+        student.approvedAt = new Date().toISOString();
+        // Auto-verify payment for free sessions
+        const studentSessions = sessions.filter(s => student.sessions.includes(s.id));
+        if (studentSessions.every(s => s.price === 'Free')) {
+          student.paymentStatus = 'verified';
+        }
+        saveStudents(all);
+        doRefresh();
       }
-      saveStudents(all);
-      doRefresh();
+    } catch (error) {
+      console.error('Error approving registration:', error);
+      alert('Error approving registration. Please try again.');
     }
   };
   
   const rejectRegistration = (studentId: string) => {
-    const all = getStudents();
-    const student = all.find(s => s.id === studentId);
-    if (student) {
-      student.registrationApproved = false;
-      saveStudents(all);
-      doRefresh();
+    try {
+      const all = getStudents();
+      const student = all.find(s => s.id === studentId);
+      if (student) {
+        student.registrationApproved = false;
+        saveStudents(all);
+        doRefresh();
+      }
+    } catch (error) {
+      console.error('Error rejecting registration:', error);
+      alert('Error rejecting registration. Please try again.');
     }
   };
   
-  const toggleLeader = (studentId: string) => { const all = getStudents(); const s = all.find(x => x.id === studentId); if (s) { s.isLeader = !s.isLeader; saveStudents(all); doRefresh(); } };
+  const toggleLeader = (studentId: string) => {
+    try {
+      const all = getStudents();
+      const s = all.find(x => x.id === studentId);
+      if (s) {
+        s.isLeader = !s.isLeader;
+        saveStudents(all);
+        doRefresh();
+      }
+    } catch (error) {
+      console.error('Error toggling leader status:', error);
+      alert('Error updating leader status. Please try again.');
+    }
+  };
 
   const [siteName, setSiteName] = useState(settings.siteName);
   const saveName = () => { saveSiteSettings({ ...getSiteSettings(), siteName }); doRefresh(); };

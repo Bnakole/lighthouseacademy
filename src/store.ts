@@ -17,6 +17,8 @@ export interface Student {
   paymentReceipt?: string;
   paymentStatus?: 'verified' | 'unverified';
   registrationApproved?: boolean;
+  approvedBy?: string;
+  approvedAt?: string;
 }
 
 export interface SessionRegistration {
