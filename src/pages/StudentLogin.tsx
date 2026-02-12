@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { findStudentByRegNumber } from '../store';
-import { GraduationCap, ArrowRight, AlertCircle, Lock } from 'lucide-react';
+import { GraduationCap, ArrowRight, AlertCircle, Lock, Clock } from 'lucide-react';
 
 export function StudentLogin() {
   const [regNumber, setRegNumber] = useState('');
@@ -17,7 +17,20 @@ export function StudentLogin() {
     e.preventDefault();
     setError('');
     const student = findStudentByRegNumber(regNumber.trim().toUpperCase());
+    
     if (student) {
+      // Check if registration is approved
+      if (!student.registrationApproved) {
+        setError('Your registration is pending approval. Please wait patiently for admin verification.');
+        return;
+      }
+      
+      // Check if payment is verified for paid sessions
+      if (student.paymentStatus === 'unverified') {
+        setError('Your payment is being verified. Please wait patiently for approval.');
+        return;
+      }
+      
       sessionStorage.setItem('lha_student_session', student.regNumber);
       navigate('/student-portal');
     } else {
@@ -42,8 +55,19 @@ export function StudentLogin() {
 
         <div className="p-8">
           {error && (
-            <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 p-4 rounded-2xl mb-6 text-sm scale-in">
-              <AlertCircle size={16} className="shrink-0" /> {error}
+            <div className={`flex items-start gap-3 p-4 rounded-2xl mb-6 text-sm scale-in ${
+              error.includes('pending') || error.includes('verified') 
+                ? 'bg-amber-50 border border-amber-200' 
+                : 'bg-red-50 border border-red-200'
+            }`}>
+              {error.includes('pending') || error.includes('verified') ? (
+                <Clock size={18} className="text-amber-500 shrink-0 mt-0.5" />
+              ) : (
+                <AlertCircle size={18} className="text-red-500 shrink-0 mt-0.5" />
+              )}
+              <div className={error.includes('pending') || error.includes('verified') ? 'text-amber-700' : 'text-red-700'}>
+                {error}
+              </div>
             </div>
           )}
 

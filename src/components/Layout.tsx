@@ -86,25 +86,25 @@ export function Layout() {
         isScrolled ? 'glass-dark shadow-2xl backdrop-blur-xl' : 'bg-gradient-to-r from-indigo-900 via-purple-900 to-pink-900'
       }`}>
         {/* Navigation */}
-        <nav className="container mx-auto px-4">
-          <div className="flex items-center justify-between h-20">
+        <nav className="container mx-auto px-3 sm:px-4">
+          <div className="flex items-center justify-between h-14 sm:h-16 md:h-20">
             {/* Logo */}
-            <Link to="/" className="flex items-center space-x-3 group">
+            <Link to="/" className="flex items-center space-x-2 sm:space-x-3 group">
               <div className="relative">
                 <div className="absolute inset-0 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full blur-md opacity-75 group-hover:opacity-100 animate-pulse-glow"></div>
-                <div className="relative bg-white rounded-full p-2 transform group-hover:scale-110 transition-transform duration-300">
+                <div className="relative bg-white rounded-full p-1.5 sm:p-2 transform group-hover:scale-110 transition-transform duration-300">
                   {settings.logo ? (
-                    <img src={settings.logo} alt="Logo" className="w-8 h-8 rounded-full object-cover" />
+                    <img src={settings.logo} alt="Logo" className="w-6 h-6 sm:w-8 sm:h-8 rounded-full object-cover" />
                   ) : (
-                    <Shield className="w-8 h-8 text-indigo-900" />
+                    <Shield className="w-6 h-6 sm:w-8 sm:h-8 text-indigo-900" />
                   )}
                 </div>
               </div>
               <div>
-                <h1 className="text-xl sm:text-2xl font-bold text-white">
+                <h1 className="text-base sm:text-xl md:text-2xl font-bold text-white">
                   {settings.siteName}
                 </h1>
-                <p className="text-xs text-indigo-200 hidden sm:block">Excellence in Drama Education</p>
+                <p className="text-[10px] sm:text-xs text-indigo-200 hidden sm:block">Excellence in Drama Education</p>
               </div>
             </Link>
 
@@ -190,10 +190,10 @@ export function Layout() {
         ></div>
 
         {/* Slide-in Menu */}
-        <div className={`absolute right-0 top-0 h-full w-80 bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900 shadow-2xl transform transition-transform duration-500 ${
+        <div className={`absolute right-0 top-0 h-full w-72 sm:w-80 bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900 shadow-2xl transform transition-transform duration-500 ${
           isMobileMenuOpen ? 'translate-x-0' : 'translate-x-full'
         }`}>
-          <div className="p-6 pt-24">
+          <div className="p-4 sm:p-6 pt-20 sm:pt-24">
             {/* Mobile Search */}
             <form onSubmit={handleSearch} className="mb-6">
               <div className="relative">
@@ -237,7 +237,7 @@ export function Layout() {
 
       {/* Hero Section - Only on Homepage */}
       {isHomePage && (
-        <section className="relative h-[600px] overflow-hidden">
+        <section className="relative h-[400px] sm:h-[500px] md:h-[600px] overflow-hidden">
           {/* Background Image with Gradient Overlay */}
           <div className="absolute inset-0">
             <div className="absolute inset-0 bg-gradient-to-r from-indigo-900/90 via-purple-900/80 to-pink-900/90 z-10"></div>
@@ -252,24 +252,24 @@ export function Layout() {
           {/* Hero Content */}
           <div className="relative z-20 container mx-auto px-4 h-full flex items-center">
             <div className="max-w-3xl animate-fade-in">
-              <h1 className="text-4xl md:text-6xl font-bold text-white mb-6">
+              <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-bold text-white mb-3 sm:mb-4 md:mb-6">
                 Welcome to <span className="text-yellow-300">{settings.siteName}</span>
               </h1>
-              <p className="text-xl md:text-2xl text-indigo-100 mb-8">
+              <p className="text-sm sm:text-base md:text-xl lg:text-2xl text-indigo-100 mb-3 sm:mb-5 md:mb-8">
                 Nurturing Creative Excellence Through Drama Education
               </p>
-              <p className="text-lg text-indigo-200 mb-10 leading-relaxed">
+              <p className="text-xs sm:text-sm md:text-base lg:text-lg text-indigo-200 mb-4 sm:mb-6 md:mb-10 leading-relaxed hidden sm:block">
                 Join our community of passionate artists and educators. Discover your potential, 
                 develop your craft, and illuminate your path to success in the performing arts.
               </p>
-              <div className="flex flex-wrap gap-4">
-                <Link to="/registration" className="btn-gold px-8 py-4 text-lg font-semibold shadow-2xl">
+              <div className="flex flex-wrap gap-2 sm:gap-3 md:gap-4">
+                <Link to="/registration" className="btn-gold px-4 sm:px-6 md:px-8 py-2 sm:py-3 md:py-4 text-xs sm:text-sm md:text-base lg:text-lg font-semibold shadow-xl md:shadow-2xl">
                   Start Your Journey
                 </Link>
-                <Link to="/sessions" className="btn-ghost px-8 py-4 text-lg font-semibold text-white border-2 border-white hover:bg-white hover:text-indigo-900">
+                <Link to="/sessions" className="btn-ghost px-4 sm:px-6 md:px-8 py-2 sm:py-3 md:py-4 text-xs sm:text-sm md:text-base lg:text-lg font-semibold text-white border-2 border-white hover:bg-white hover:text-indigo-900">
                   Explore Programs
                 </Link>
-                <Link to="/about" className="btn-accent px-8 py-4 text-lg font-semibold">
+                <Link to="/about" className="btn-accent px-4 sm:px-6 md:px-8 py-2 sm:py-3 md:py-4 text-xs sm:text-sm md:text-base lg:text-lg font-semibold hidden sm:inline-block">
                   Virtual Tour
                 </Link>
               </div>
@@ -289,8 +289,8 @@ export function Layout() {
       </main>
 
       {/* Enhanced Footer */}
-      <footer className="bg-gradient-to-r from-indigo-900 via-purple-900 to-pink-900 text-white mt-20">
-        <div className="container mx-auto px-4 py-16">
+      <footer className="bg-gradient-to-r from-indigo-900 via-purple-900 to-pink-900 text-white mt-10 sm:mt-16 md:mt-20">
+        <div className="container mx-auto px-4 py-8 sm:py-12 md:py-16">
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
             {/* About */}
             <div>

@@ -14,6 +14,9 @@ export interface Student {
   sessions: string[];
   isLeader: boolean;
   createdAt: string;
+  paymentReceipt?: string;
+  paymentStatus?: 'verified' | 'unverified';
+  registrationApproved?: boolean;
 }
 
 export interface SessionRegistration {
@@ -112,7 +115,7 @@ export function findStudentByRegNumber(regNumber: string): Student | undefined {
   return getStudents().find(s => s.regNumber === regNumber);
 }
 
-export function registerStudent(data: Omit<Student, 'id' | 'regNumber' | 'isLeader' | 'createdAt'>): { success: boolean; message: string; regNumber?: string } {
+export function registerStudent(data: Omit<Student, 'id' | 'regNumber' | 'isLeader' | 'createdAt'> & { paymentReceipt?: string; paymentStatus?: 'verified' | 'unverified'; registrationApproved?: boolean }): { success: boolean; message: string; regNumber?: string } {
   const students = getStudents();
   const existing = students.find(s => s.email.toLowerCase() === data.email.toLowerCase());
   
@@ -150,9 +153,20 @@ export function registerStudent(data: Omit<Student, 'id' | 'regNumber' | 'isLead
   const student: Student = {
     id: uuidv4(),
     regNumber,
-    ...data,
+    fullName: data.fullName,
+    email: data.email,
+    phone: data.phone,
+    dramaGroup: data.dramaGroup,
+    position: data.position,
+    country: data.country,
+    state: data.state,
+    passport: data.passport,
+    sessions: data.sessions,
     isLeader: false,
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    paymentReceipt: data.paymentReceipt,
+    paymentStatus: data.paymentStatus || 'unverified',
+    registrationApproved: data.registrationApproved || false
   };
   students.push(student);
   saveStudents(students);

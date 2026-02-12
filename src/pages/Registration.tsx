@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getSessions, getCountries, registerStudent, fileToBase64 } from '../store';
-import { UserPlus, Camera, ArrowRight, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { UserPlus, Camera, ArrowRight, AlertCircle, CheckCircle2, CreditCard, Upload } from 'lucide-react';
 
 export function Registration() {
   const navigate = useNavigate();
@@ -9,8 +9,9 @@ export function Registration() {
   const countries = getCountries();
   const [form, setForm] = useState({
     fullName: '', email: '', phone: '', dramaGroup: '', position: 'Member',
-    country: '', state: '', sessionId: '', passport: ''
+    country: '', state: '', sessionId: '', passport: '', paymentReceipt: ''
   });
+  const [showPayment, setShowPayment] = useState(false);
   const [message, setMessage] = useState<{ type: string; text: string } | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -22,6 +23,14 @@ export function Registration() {
     if (file) {
       const data = await fileToBase64(file);
       setForm(f => ({ ...f, passport: data }));
+    }
+  };
+
+  const handlePaymentReceipt = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const data = await fileToBase64(file);
+      setForm(f => ({ ...f, paymentReceipt: data }));
     }
   };
 
@@ -48,16 +57,37 @@ export function Registration() {
         setLoading(false);
         return;
       }
+      
+      // Check if payment is required
+      if (session.price !== 'Free' && !form.paymentReceipt) {
+        setShowPayment(true);
+        setMessage({ type: 'error', text: 'Please upload payment receipt for this paid session.' });
+        setLoading(false);
+        return;
+      }
     }
 
     const result = registerStudent({
       fullName: form.fullName, email: form.email, phone: form.phone,
       dramaGroup: form.dramaGroup, position: form.position, country: form.country,
-      state: form.state, passport: form.passport, sessions: [form.sessionId]
+      state: form.state, passport: form.passport, sessions: [form.sessionId],
+      paymentReceipt: form.paymentReceipt, 
+      registrationApproved: false,
+      paymentStatus: session?.price === 'Free' ? 'verified' : 'unverified'
     });
 
     if (result.success) {
-      setMessage({ type: 'success', text: result.message });
+      if (session?.price === 'Free') {
+        setMessage({ 
+          type: 'success', 
+          text: 'Congratulations! Registration successful. Your registration number has been sent to your email. Please wait for admin approval before accessing the student portal.'
+        });
+      } else {
+        setMessage({ 
+          type: 'success', 
+          text: 'Congratulations! Registration submitted successfully. Please wait patiently for payment verification and admin approval. You will receive your registration number via email once approved.'
+        });
+      }
     } else {
       setMessage({ type: 'error', text: result.message });
     }
@@ -194,7 +224,17 @@ export function Registration() {
 
             <div>
               <label className="block text-sm font-semibold text-gray-600 mb-2">Select Session *</label>
-              <select required value={form.sessionId} onChange={e => setForm(f => ({ ...f, sessionId: e.target.value }))}
+              <select required value={form.sessionId} 
+                onChange={e => {
+                  const sessionId = e.target.value;
+                  setForm(f => ({ ...f, sessionId }));
+                  const session = sessions.find(s => s.id === sessionId);
+                  if (session && session.price !== 'Free') {
+                    setShowPayment(true);
+                  } else {
+                    setShowPayment(false);
+                  }
+                }}
                 className="select-premium">
                 <option value="">Choose a session</option>
                 {openSessions.map(s => (
@@ -207,6 +247,65 @@ export function Registration() {
                 </p>
               )}
             </div>
+
+            {/* Payment Section */}
+            {showPayment && (
+              <div className="fade-in space-y-4">
+                <div className="section-divider" />
+                
+                <div className="payment-card p-6 rounded-2xl">
+                  <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                    <CreditCard size={20} className="text-yellow-600" />
+                    Payment Required
+                  </h3>
+                  
+                  <div className="bg-white/80 backdrop-blur rounded-xl p-5 space-y-3 border border-yellow-200">
+                    <h4 className="font-semibold text-gray-700 text-sm">Bank Account Details:</h4>
+                    <div className="space-y-2">
+                      <div className="flex items-start gap-3">
+                        <span className="text-xs font-medium text-gray-500 w-20">Bank:</span>
+                        <span className="text-sm font-bold text-gray-800">OPAY</span>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <span className="text-xs font-medium text-gray-500 w-20">Account No:</span>
+                        <span className="text-sm font-bold text-gray-800">8080498742</span>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <span className="text-xs font-medium text-gray-500 w-20">Account Name:</span>
+                        <span className="text-sm font-bold text-gray-800">LIGHT HOUSE ACADEMY</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-5">
+                    <label className="block text-sm font-semibold text-gray-600 mb-2">
+                      Upload Payment Receipt *
+                    </label>
+                    <div className="file-upload-zone relative">
+                      <input 
+                        type="file" 
+                        accept="image/*,application/pdf" 
+                        onChange={handlePaymentReceipt}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
+                        required={showPayment}
+                      />
+                      <div className="flex flex-col items-center py-8">
+                        <Upload size={32} className="text-gray-400 mb-3" />
+                        <p className="text-sm font-medium text-gray-600">
+                          {form.paymentReceipt ? 'Receipt uploaded ✓' : 'Click to upload receipt'}
+                        </p>
+                        <p className="text-xs text-gray-400 mt-1">Image or PDF (Max 5MB)</p>
+                      </div>
+                    </div>
+                    {form.paymentReceipt && (
+                      <p className="text-xs text-emerald-600 mt-2 flex items-center gap-1">
+                        <CheckCircle2 size={12} /> Payment receipt uploaded successfully
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="section-divider" />
 

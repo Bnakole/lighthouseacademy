@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getStudents, saveStudents, getSessions, saveSessions, getMaterials, saveMaterials, getSessionRegistrations, saveSessionRegistrations, getStaffProfiles, saveStaffProfiles, getSiteSettings, saveSiteSettings, getChatMessages, saveChatMessages, fileToBase64 } from '../store';
 import type { AcademySession, Student } from '../store';
-import { LogOut, X, Send, MessageCircle, Download, Eye, Plus, Settings, Users, BookOpen, Award, CreditCard, Crown, Mic, Image, Upload } from 'lucide-react';
+import { LogOut, X, Send, MessageCircle, Download, Eye, Plus, Settings, Users, BookOpen, Award, CreditCard, Crown, Mic, Image, Upload, CheckCircle, XCircle, Clock } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 
 export function AdminPortal() {
@@ -53,7 +53,49 @@ export function AdminPortal() {
   };
 
   const unlockCertificate = (studentId: string, sessionId: string) => { const allRegs = getSessionRegistrations(); const reg = allRegs.find(r => r.studentId === studentId && r.sessionId === sessionId); if (reg) { reg.certificateUnlocked = true; saveSessionRegistrations(allRegs); doRefresh(); } };
-  const verifyPayment = (studentId: string, sessionId: string) => { const allRegs = getSessionRegistrations(); const reg = allRegs.find(r => r.studentId === studentId && r.sessionId === sessionId); if (reg) { reg.paymentVerified = true; saveSessionRegistrations(allRegs); doRefresh(); } };
+  const verifyPayment = (studentId: string, sessionId: string) => { 
+    const allRegs = getSessionRegistrations(); 
+    const reg = allRegs.find(r => r.studentId === studentId && r.sessionId === sessionId); 
+    if (reg) { 
+      reg.paymentVerified = true; 
+      saveSessionRegistrations(allRegs); 
+      
+      // Also update student payment status
+      const allStudents = getStudents();
+      const student = allStudents.find(s => s.id === studentId);
+      if (student) {
+        student.paymentStatus = 'verified';
+        saveStudents(allStudents);
+      }
+      doRefresh(); 
+    } 
+  };
+  
+  const approveRegistration = (studentId: string) => {
+    const all = getStudents();
+    const student = all.find(s => s.id === studentId);
+    if (student) {
+      student.registrationApproved = true;
+      // Auto-verify payment for free sessions
+      const studentSessions = sessions.filter(s => student.sessions.includes(s.id));
+      if (studentSessions.every(s => s.price === 'Free')) {
+        student.paymentStatus = 'verified';
+      }
+      saveStudents(all);
+      doRefresh();
+    }
+  };
+  
+  const rejectRegistration = (studentId: string) => {
+    const all = getStudents();
+    const student = all.find(s => s.id === studentId);
+    if (student) {
+      student.registrationApproved = false;
+      saveStudents(all);
+      doRefresh();
+    }
+  };
+  
   const toggleLeader = (studentId: string) => { const all = getStudents(); const s = all.find(x => x.id === studentId); if (s) { s.isLeader = !s.isLeader; saveStudents(all); doRefresh(); } };
 
   const [siteName, setSiteName] = useState(settings.siteName);
@@ -90,8 +132,10 @@ export function AdminPortal() {
   };
 
   const chatMessages = getChatMessages().filter(m => !m.deleted);
+  const pendingStudents = students.filter(s => !s.registrationApproved);
   const tabs = [
     { id: 'dashboard', label: 'Dashboard', icon: <Crown size={15} /> },
+    { id: 'approvals', label: `Approvals${pendingStudents.length > 0 ? ` (${pendingStudents.length})` : ''}`, icon: <CheckCircle size={15} /> },
     { id: 'sessions', label: 'Sessions', icon: <Plus size={15} /> },
     { id: 'students', label: 'Students', icon: <Users size={15} /> },
     { id: 'materials', label: 'Materials', icon: <BookOpen size={15} /> },
@@ -136,6 +180,104 @@ export function AdminPortal() {
       </div>
 
       <div className="card-premium p-6 md:p-8">
+        {tab === 'approvals' && (
+          <div className="space-y-4 slide-up">
+            <h2 className="text-xl font-extrabold text-gray-800 flex items-center gap-2">
+              <CheckCircle size={20} className="text-emerald-500" /> Registration Approvals
+            </h2>
+            {pendingStudents.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-3">
+                  <CheckCircle size={24} className="text-gray-300" />
+                </div>
+                <p className="text-gray-400">No pending registrations.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {pendingStudents.map(s => {
+                  const studentSessions = sessions.filter(sess => s.sessions.includes(sess.id));
+                  const hasPaidSession = studentSessions.some(sess => sess.price !== 'Free');
+                  return (
+                    <div key={s.id} className="card-premium p-5">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex items-start gap-3 flex-1">
+                          {s.passport ? (
+                            <img src={s.passport} alt="" className="w-14 h-14 rounded-full object-cover avatar" />
+                          ) : (
+                            <div className="w-14 h-14 rounded-full gradient-primary flex items-center justify-center text-white font-bold">
+                              {s.fullName.charAt(0)}
+                            </div>
+                          )}
+                          <div className="flex-1">
+                            <h3 className="font-bold text-gray-800">{s.fullName}</h3>
+                            <p className="text-sm text-gray-500">{s.email}</p>
+                            <p className="text-xs text-gray-400 mt-1">Phone: {s.phone}</p>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              <span className="badge badge-info text-xs">
+                                {s.dramaGroup || 'No group'} - {s.position}
+                              </span>
+                              <span className="badge badge-gold text-xs">
+                                {s.country}, {s.state}
+                              </span>
+                            </div>
+                            <div className="mt-2">
+                              <p className="text-xs font-semibold text-gray-600 mb-1">Sessions:</p>
+                              <div className="flex flex-wrap gap-1">
+                                {studentSessions.map(sess => (
+                                  <span key={sess.id} className="badge badge-info text-xs">
+                                    {sess.name} ({sess.price})
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                            {hasPaidSession && s.paymentReceipt && (
+                              <div className="mt-3">
+                                <p className="text-xs font-semibold text-gray-600 mb-2">Payment Receipt:</p>
+                                {s.paymentReceipt.startsWith('data:image') ? (
+                                  <img src={s.paymentReceipt} alt="Receipt" className="max-w-[200px] rounded-lg border shadow-sm" />
+                                ) : (
+                                  <a href={s.paymentReceipt} download="receipt.pdf" className="text-indigo-500 text-sm flex items-center gap-1">
+                                    <Download size={13} /> Download PDF
+                                  </a>
+                                )}
+                                <span className={`badge mt-2 ${s.paymentStatus === 'verified' ? 'badge-success' : 'badge-warning'}`}>
+                                  Payment: {s.paymentStatus === 'verified' ? 'Verified' : 'Unverified'}
+                                </span>
+                              </div>
+                            )}
+                            {!hasPaidSession && (
+                              <div className="mt-3">
+                                <span className="badge badge-success text-xs">Free Session - No Payment Required</span>
+                              </div>
+                            )}
+                            <p className="text-xs text-gray-400 mt-2">
+                              Registered: {new Date(s.createdAt).toLocaleString()}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex flex-col gap-2">
+                          <button
+                            onClick={() => approveRegistration(s.id)}
+                            className="btn-success text-sm py-2 px-4 flex items-center gap-1"
+                          >
+                            <CheckCircle size={16} /> Approve
+                          </button>
+                          <button
+                            onClick={() => rejectRegistration(s.id)}
+                            className="btn-primary bg-red-500 hover:bg-red-600 text-sm py-2 px-4 flex items-center gap-1"
+                          >
+                            <XCircle size={16} /> Reject
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
         {tab === 'dashboard' && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 slide-up">
             {[

@@ -761,18 +761,384 @@ body {
 }
 
 /* ===== RESPONSIVE UTILITIES ===== */
-@media (max-width: 768px) {
-  .card-premium, .card-premium-interactive {
-    border-radius: 16px;
+
+/* Mobile First Approach - Smaller default sizes */
+@media (max-width: 640px) {
+  /* Global text size reduction */
+  html {
+    font-size: 14px;
   }
   
-  .btn-primary, .btn-gold, .btn-ghost {
-    padding: 10px 20px;
+  body {
+    font-size: 0.875rem;
+  }
+  
+  h1 { font-size: 1.5rem !important; }
+  h2 { font-size: 1.25rem !important; }
+  h3 { font-size: 1.1rem !important; }
+  h4 { font-size: 1rem !important; }
+  h5 { font-size: 0.9rem !important; }
+  h6 { font-size: 0.85rem !important; }
+  
+  /* Reduce padding and margins */
+  .container {
+    padding: 0.75rem !important;
+  }
+  
+  /* Cards & Sections */
+  .card-premium, .card-premium-interactive, .glass-card {
+    border-radius: 12px;
+    padding: 1rem !important;
+    margin-bottom: 0.75rem;
+  }
+  
+  .stat-card {
+    padding: 1rem !important;
     border-radius: 12px;
   }
   
+  /* Buttons */
+  .btn-primary, .btn-gold, .btn-ghost, .btn-accent, .btn-success {
+    padding: 8px 16px;
+    border-radius: 10px;
+    font-size: 0.8rem;
+  }
+  
+  /* Forms */
+  .input-premium, .select-premium {
+    padding: 8px 12px;
+    border-radius: 10px;
+    font-size: 0.85rem;
+  }
+  
+  textarea.input-premium {
+    min-height: 80px;
+  }
+  
+  /* Navigation */
+  .nav-link {
+    padding: 6px 12px;
+    font-size: 0.8rem;
+  }
+  
+  /* Tabs */
+  .tab-btn {
+    padding: 6px 12px;
+    font-size: 0.75rem;
+  }
+  
+  /* Badges */
+  .badge {
+    padding: 2px 8px;
+    font-size: 0.65rem;
+  }
+  
+  /* Table */
+  .table-premium thead th {
+    padding: 8px;
+    font-size: 0.7rem;
+  }
+  
+  .table-premium tbody td {
+    padding: 8px;
+    font-size: 0.8rem;
+  }
+  
+  /* Modal */
+  .modal-content {
+    margin: 1rem;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  
+  /* Chat */
+  .chat-bubble-own, .chat-bubble-other {
+    padding: 8px 12px;
+    font-size: 0.8rem;
+    max-width: 85%;
+  }
+  
+  .chat-fab {
+    width: 48px;
+    height: 48px;
+    bottom: 16px;
+    right: 16px;
+  }
+  
+  /* File upload */
+  .file-upload {
+    padding: 16px;
+  }
+  
+  /* Section spacing */
+  section {
+    padding: 1.5rem 0 !important;
+  }
+  
+  .section-divider {
+    margin: 1.5rem 0;
+  }
+  
+  /* Grid adjustments */
+  .grid {
+    gap: 0.75rem !important;
+  }
+  
+  /* Images */
+  img {
+    max-width: 100%;
+    height: auto;
+  }
+  
+  /* Payment card */
+  .payment-card {
+    padding: 1rem;
+  }
+  
+  /* Avatar sizes */
+  .avatar {
+    width: 32px !important;
+    height: 32px !important;
+  }
+  
+  /* Reduce spacing between elements */
+  .space-y-4 {
+    gap: 0.75rem !important;
+  }
+  
+  .space-y-6 {
+    gap: 1rem !important;
+  }
+  
+  .gap-4 {
+    gap: 0.75rem !important;
+  }
+  
+  .gap-6 {
+    gap: 1rem !important;
+  }
+  
+  /* Header adjustments */
+  header {
+    padding: 0.5rem 0 !important;
+  }
+  
+  /* Footer adjustments */
+  footer {
+    padding: 1.5rem 0.75rem !important;
+  }
+  
+  footer h3 {
+    font-size: 1rem !important;
+  }
+  
+  footer p, footer a {
+    font-size: 0.8rem !important;
+  }
+}
+
+/* Tablet sizes */
+@media (min-width: 641px) and (max-width: 1024px) {
+  /* Global text size reduction */
+  html {
+    font-size: 15px;
+  }
+  
+  body {
+    font-size: 0.9rem;
+  }
+  
+  h1 { font-size: 1.75rem !important; }
+  h2 { font-size: 1.5rem !important; }
+  h3 { font-size: 1.25rem !important; }
+  h4 { font-size: 1.1rem !important; }
+  h5 { font-size: 1rem !important; }
+  h6 { font-size: 0.9rem !important; }
+  
+  /* Container padding */
+  .container {
+    padding: 1rem !important;
+  }
+  
+  /* Cards & Sections */
+  .card-premium, .card-premium-interactive, .glass-card {
+    border-radius: 16px;
+    padding: 1.25rem !important;
+  }
+  
+  .stat-card {
+    padding: 1.25rem !important;
+  }
+  
+  /* Buttons */
+  .btn-primary, .btn-gold, .btn-ghost, .btn-accent, .btn-success {
+    padding: 10px 20px;
+    border-radius: 12px;
+    font-size: 0.85rem;
+  }
+  
+  /* Forms */
   .input-premium, .select-premium {
     padding: 10px 14px;
     border-radius: 12px;
+    font-size: 0.9rem;
   }
+  
+  /* Navigation */
+  .nav-link {
+    padding: 8px 14px;
+    font-size: 0.85rem;
+  }
+  
+  /* Tabs */
+  .tab-btn {
+    padding: 8px 16px;
+    font-size: 0.8rem;
+  }
+  
+  /* Table */
+  .table-premium thead th {
+    padding: 10px;
+    font-size: 0.75rem;
+  }
+  
+  .table-premium tbody td {
+    padding: 10px;
+    font-size: 0.85rem;
+  }
+  
+  /* Chat */
+  .chat-fab {
+    width: 56px;
+    height: 56px;
+    bottom: 20px;
+    right: 20px;
+  }
+  
+  /* Section spacing */
+  section {
+    padding: 2rem 0 !important;
+  }
+  
+  /* Grid adjustments */
+  .grid {
+    gap: 1rem !important;
+  }
+  
+  /* Avatar sizes */
+  .avatar {
+    width: 40px !important;
+    height: 40px !important;
+  }
+  
+  /* Spacing adjustments */
+  .space-y-4 {
+    gap: 1rem !important;
+  }
+  
+  .space-y-6 {
+    gap: 1.25rem !important;
+  }
+  
+  .gap-4 {
+    gap: 1rem !important;
+  }
+  
+  .gap-6 {
+    gap: 1.25rem !important;
+  }
+}
+
+/* Extra small devices */
+@media (max-width: 480px) {
+  html {
+    font-size: 13px;
+  }
+  
+  /* Ultra compact for very small screens */
+  .btn-primary, .btn-gold, .btn-ghost, .btn-accent, .btn-success {
+    padding: 6px 12px;
+    font-size: 0.75rem;
+  }
+  
+  .input-premium, .select-premium {
+    padding: 6px 10px;
+    font-size: 0.8rem;
+  }
+  
+  /* Reduce modal padding on very small screens */
+  .modal-content {
+    margin: 0.5rem;
+    border-radius: 12px;
+  }
+  
+  /* Compact header */
+  header {
+    padding: 0.25rem 0 !important;
+  }
+  
+  /* Compact cards */
+  .card-premium, .card-premium-interactive, .glass-card {
+    padding: 0.75rem !important;
+  }
+}
+
+/* Landscape mode adjustments */
+@media (max-height: 600px) and (orientation: landscape) {
+  /* Reduce vertical spacing in landscape */
+  section {
+    padding: 1rem 0 !important;
+  }
+  
+  .hero-section {
+    min-height: 70vh !important;
+  }
+  
+  /* Smaller modals in landscape */
+  .modal-content {
+    max-height: 85vh;
+  }
+  
+  /* Compact headers */
+  h1 { font-size: 1.25rem !important; }
+  h2 { font-size: 1.1rem !important; }
+  h3 { font-size: 1rem !important; }
+}
+
+/* High density screens */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  /* Thinner borders for retina displays */
+  .card-premium, .card-premium-interactive {
+    border-width: 0.5px;
+  }
+  
+  .input-premium, .select-premium {
+    border-width: 1px;
+  }
+}
+
+/* Utility classes for responsive text */
+.text-responsive-xs { font-size: clamp(0.7rem, 2vw, 0.85rem); }
+.text-responsive-sm { font-size: clamp(0.8rem, 2.5vw, 1rem); }
+.text-responsive-md { font-size: clamp(0.9rem, 3vw, 1.125rem); }
+.text-responsive-lg { font-size: clamp(1rem, 3.5vw, 1.25rem); }
+.text-responsive-xl { font-size: clamp(1.25rem, 4vw, 1.5rem); }
+.text-responsive-2xl { font-size: clamp(1.5rem, 5vw, 2rem); }
+.text-responsive-3xl { font-size: clamp(1.75rem, 6vw, 2.5rem); }
+
+/* Container max-widths for better readability */
+@media (min-width: 640px) {
+  .container { max-width: 640px; }
+}
+
+@media (min-width: 768px) {
+  .container { max-width: 768px; }
+}
+
+@media (min-width: 1024px) {
+  .container { max-width: 1024px; }
+}
+
+@media (min-width: 1280px) {
+  .container { max-width: 1280px; }
 }
