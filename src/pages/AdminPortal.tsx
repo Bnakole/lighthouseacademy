@@ -426,33 +426,96 @@ export function AdminPortal() {
         )}
 
         {tab === 'students' && (
-          <div className="slide-up">
-            <h2 className="text-xl font-extrabold text-gray-800 mb-4 flex items-center gap-2"><Users size={20} className="text-indigo-500" /> All Students ({students.length})</h2>
-            <div className="overflow-x-auto rounded-2xl border border-gray-100">
-              <table className="table-premium">
-                <thead><tr><th>Photo</th><th>Name</th><th>Reg#</th><th>Email</th><th>Leader</th><th>Actions</th></tr></thead>
-                <tbody>
-                  {students.map(s => (
-                    <tr key={s.id}>
-                      <td>{s.passport ? <img src={s.passport} alt="" className="w-10 h-10 rounded-full object-cover avatar" /> : <div className="w-10 h-10 rounded-full gradient-primary flex items-center justify-center text-white font-bold text-sm">{s.fullName.charAt(0)}</div>}</td>
-                      <td className="font-semibold text-gray-700">{s.fullName}</td>
-                      <td className="font-mono text-xs text-gray-500">{s.regNumber}</td>
-                      <td className="text-gray-500 text-sm">{s.email}</td>
-                      <td>
-                        <button onClick={() => toggleLeader(s.id)} className={`badge ${s.isLeader ? 'badge-gold' : 'bg-gray-100 text-gray-500 border border-gray-200'} cursor-pointer transition hover:scale-105`}>
-                          {s.isLeader ? '⭐ Leader' : 'Set Leader'}
-                        </button>
-                      </td>
-                      <td>
-                        <button onClick={() => setSelectedStudent(s)} className="p-2 rounded-xl bg-indigo-50 text-indigo-500 hover:bg-indigo-100 transition">
-                          <Eye size={16} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+          <div className="slide-up space-y-6">
+            <h2 className="text-xl font-extrabold text-gray-800 mb-4 flex items-center gap-2">
+              <Users size={20} className="text-indigo-500" /> 
+              Approved Students ({students.filter(s => s.registrationApproved).length})
+            </h2>
+            
+            {/* Organize students by session */}
+            {sessions.map(session => {
+              const sessionStudents = students.filter(s => 
+                s.registrationApproved && s.sessions?.includes(session.id)
+              );
+              
+              if (sessionStudents.length === 0) return null;
+              
+              return (
+                <div key={session.id} className="card-premium p-6">
+                  <h3 className="font-bold text-lg text-gray-800 mb-4 flex items-center gap-2">
+                    <BookOpen size={18} className="text-emerald-500" />
+                    {session.name}
+                    <span className="badge badge-info ml-2">{sessionStudents.length} students</span>
+                  </h3>
+                  
+                  <div className="overflow-x-auto rounded-xl border border-gray-100">
+                    <table className="table-premium">
+                      <thead>
+                        <tr>
+                          <th>Photo</th>
+                          <th>Name</th>
+                          <th>Reg#</th>
+                          <th>Email</th>
+                          <th>Phone</th>
+                          <th>Status</th>
+                          <th>Leader</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {sessionStudents.map(s => (
+                          <tr key={s.id}>
+                            <td>
+                              {s.passport ? (
+                                <img src={s.passport} alt="" className="w-10 h-10 rounded-full object-cover avatar" />
+                              ) : (
+                                <div className="w-10 h-10 rounded-full gradient-primary flex items-center justify-center text-white font-bold text-sm">
+                                  {s.fullName.charAt(0)}
+                                </div>
+                              )}
+                            </td>
+                            <td className="font-semibold text-gray-700">{s.fullName}</td>
+                            <td className="font-mono text-xs text-gray-500">{s.regNumber}</td>
+                            <td className="text-gray-500 text-sm">{s.email}</td>
+                            <td className="text-gray-500 text-sm">{s.phone}</td>
+                            <td>
+                              <span className={`badge ${s.paymentStatus === 'verified' ? 'badge-success' : 'badge-warning'}`}>
+                                {s.paymentStatus === 'verified' ? '✓ Verified' : 'Unverified'}
+                              </span>
+                            </td>
+                            <td>
+                              <button 
+                                onClick={() => toggleLeader(s.id)} 
+                                className={`badge ${s.isLeader ? 'badge-gold' : 'bg-gray-100 text-gray-500 border border-gray-200'} cursor-pointer transition hover:scale-105`}
+                              >
+                                {s.isLeader ? '⭐ Leader' : 'Set Leader'}
+                              </button>
+                            </td>
+                            <td>
+                              <button 
+                                onClick={() => setSelectedStudent(s)} 
+                                className="p-2 rounded-xl bg-indigo-50 text-indigo-500 hover:bg-indigo-100 transition"
+                              >
+                                <Eye size={16} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })}
+            
+            {students.filter(s => s.registrationApproved).length === 0 && (
+              <div className="text-center py-12">
+                <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-3">
+                  <Users size={24} className="text-gray-300" />
+                </div>
+                <p className="text-gray-400">No approved students yet.</p>
+              </div>
+            )}
           </div>
         )}
 
