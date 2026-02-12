@@ -9,17 +9,14 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.73.0",
-    "@emailjs/browser": "^4.4.1",
-    "@monaco-editor/react": "^4.7.0",
-    "@supabase/supabase-js": "^2.95.3",
+    "@types/uuid": "^10.0.0",
     "clsx": "2.1.1",
-    "emoji-picker-react": "^4.17.4",
-    "firebase": "^12.8.0",
+    "lucide-react": "^0.563.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-router-dom": "^7.13.0",
-    "tailwind-merge": "3.4.0"
+    "tailwind-merge": "3.4.0",
+    "uuid": "^13.0.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "4.1.17",

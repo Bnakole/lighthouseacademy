@@ -1,695 +1,251 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useApp } from '../context/AppContext';
-import { GroupChat } from '../components/GroupChat';
+import { getStudents, getSessions, getMaterials, saveMaterials, getStaffProfiles, saveStaffProfiles, getChatMessages, saveChatMessages, getSiteSettings, fileToBase64 } from '../store';
+import type { Student } from '../store';
+import { LogOut, X, Send, MessageCircle, Download, Eye, BookOpen, Users, Target, Upload, Home, User, Mic, MessageSquare } from 'lucide-react';
+import { v4 as uuidv4 } from 'uuid';
 
-const SCOPortal: React.FC = () => {
+export function SCOPortal() {
   const navigate = useNavigate();
-  const {
-    students,
-    sessions,
-    materials,
-    addMaterial,
-    deleteMaterial,
-    messages,
-    sendMessage,
-    getMessagesByStudent,
-    markMessagesAsRead,
-    getUnreadCount,
-    isOnline,
-    isSyncing,
-    siteSettings,
-    updateSiteSettings
-  } = useApp();
+  const [tab, setTab] = useState('dashboard');
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatMsg, setChatMsg] = useState('');
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [refresh, setRefresh] = useState(0);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
-  const [activeTab, setActiveTab] = useState<'materials' | 'messages' | 'profile'>('materials');
-  const [searchTerm, setSearchTerm] = useState('');
-  
-  // Material upload state
-  const [showMaterialModal, setShowMaterialModal] = useState(false);
-  const [materialForm, setMaterialForm] = useState({
-    title: '',
-    description: '',
-    category: 'document',
-    targetProgram: 'Online Training',
-    targetSession: ''
-  });
-  const [materialFile, setMaterialFile] = useState<string>('');
-  const [materialFileName, setMaterialFileName] = useState('');
-  const [materialFileType, setMaterialFileType] = useState('');
-  const [materialFileSize, setMaterialFileSize] = useState(0);
+  useEffect(() => { if (sessionStorage.getItem('lha_admin_role') !== 'sco') navigate('/admin-login'); }, [navigate]);
 
-  // Messages state
-  const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
-  const [newMessage, setNewMessage] = useState('');
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const doRefresh = () => setRefresh(r => r + 1); void refresh;
 
-  // Profile state
-  const [profileForm, setProfileForm] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    occupation: '',
-    school: ''
-  });
-  const [profilePicture, setProfilePicture] = useState<string>('');
-  const [isSaving, setIsSaving] = useState(false);
+  const students = getStudents();
+  const sessions = getSessions();
+  const materials = getMaterials();
+  const staff = getStaffProfiles();
+  const settings = getSiteSettings();
 
-  // Check if user has access
-  useEffect(() => {
-    const role = localStorage.getItem('lha_staff_role');
-    if (role !== 'sco' && role !== 'admin') {
-      navigate('/admin-login');
-    }
-  }, [navigate]);
-
-  // Load profile from siteSettings
-  useEffect(() => {
-    if (siteSettings?.staffContacts?.sco) {
-      const sco = siteSettings.staffContacts.sco;
-      setProfileForm({
-        name: sco.name || '',
-        email: sco.email || '',
-        phone: sco.phone || '',
-        occupation: sco.occupation || 'Student Coordinator',
-        school: sco.school || ''
-      });
-      setProfilePicture(sco.profilePicture || '');
-    }
-  }, [siteSettings]);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, selectedConversation]);
-
-  const handleLogout = () => {
-    localStorage.removeItem('lha_staff_role');
-    navigate('/admin-login');
+  const uploadMaterial = async (sessionId: string, file: File) => {
+    const data = await fileToBase64(file);
+    const all = getMaterials(); all.push({ id: uuidv4(), name: file.name, fileData: data, uploadedAt: new Date().toISOString(), sessionId }); saveMaterials(all); doRefresh();
   };
 
-  // Handle profile picture upload
-  const handleProfilePictureChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        alert('Image size must be less than 5MB');
-        return;
-      }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setProfilePicture(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
+  const scoIdx = staff.findIndex(s => s.role === 'SCO');
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [replyTo, setReplyTo] = useState<string | null>(null);
+  const [replyMsg, setReplyMsg] = useState('');
+
+  const studentMessages = getChatMessages().filter(m => m.senderRole === 'student' && !m.deleted);
+
+  const sendReply = (studentName: string) => {
+    if (!replyMsg.trim()) return;
+    const msgs = getChatMessages(); const scoStaff = staff.find(s => s.role === 'SCO');
+    msgs.push({ id: uuidv4(), senderId: 'sco', senderName: scoStaff?.name || 'SCO', senderRole: 'sco', senderAvatar: scoStaff?.picture || '', content: `@${studentName}: ${replyMsg.trim()}`, type: 'text', timestamp: new Date().toISOString(), deleted: false, edited: false });
+    saveChatMessages(msgs); setReplyMsg(''); setReplyTo(null);
   };
 
-  // Save profile
-  const handleSaveProfile = async () => {
-    setIsSaving(true);
+  const sendChat = () => {
+    if (!chatMsg.trim()) return;
+    const msgs = getChatMessages(); const scoStaff = staff.find(s => s.role === 'SCO');
+    msgs.push({ id: uuidv4(), senderId: 'sco', senderName: scoStaff?.name || 'SCO', senderRole: 'sco', senderAvatar: scoStaff?.picture || '', content: chatMsg.trim(), type: 'text', timestamp: new Date().toISOString(), deleted: false, edited: false });
+    saveChatMessages(msgs); setChatMsg('');
+  };
+
+  const sendVoice = async () => {
     try {
-      const updatedSettings = {
-        ...siteSettings,
-        staffContacts: {
-          ...siteSettings?.staffContacts,
-          sco: {
-            name: profileForm.name,
-            email: profileForm.email,
-            phone: profileForm.phone,
-            occupation: profileForm.occupation,
-            school: profileForm.school,
-            profilePicture: profilePicture
-          }
-        }
-      };
-      updateSiteSettings(updatedSettings);
-      alert('Profile updated successfully!');
-    } catch (error) {
-      alert('Failed to save profile');
-    }
-    setIsSaving(false);
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream); const chunks: BlobPart[] = [];
+      recorder.ondataavailable = e => chunks.push(e.data);
+      recorder.onstop = async () => { stream.getTracks().forEach(t => t.stop()); const blob = new Blob(chunks, { type: 'audio/webm' }); const f = new File([blob], 'voice.webm'); const data = await fileToBase64(f); const msgs = getChatMessages(); const scoStaff = staff.find(s => s.role === 'SCO'); msgs.push({ id: uuidv4(), senderId: 'sco', senderName: scoStaff?.name || 'SCO', senderRole: 'sco', senderAvatar: scoStaff?.picture || '', content: 'Voice Message', type: 'voice', fileData: data, fileName: 'voice.webm', timestamp: new Date().toISOString(), deleted: false, edited: false }); saveChatMessages(msgs); };
+      recorder.start(); setTimeout(() => recorder.stop(), 10000); alert('Recording...');
+    } catch { alert('Microphone access denied'); }
   };
 
-  // Handle material file upload
-  const handleMaterialFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 50 * 1024 * 1024) {
-        alert('File size must be less than 50MB');
-        return;
-      }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setMaterialFile(reader.result as string);
-        setMaterialFileName(file.name);
-        setMaterialFileType(file.type);
-        setMaterialFileSize(file.size);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  // Handle material upload
-  const handleUploadMaterial = () => {
-    if (!materialForm.title || !materialFile) {
-      alert('Please fill in all required fields');
-      return;
-    }
-    addMaterial({
-      title: materialForm.title,
-      description: materialForm.description,
-      fileName: materialFileName,
-      fileType: materialFileType,
-      fileData: materialFile,
-      fileSize: materialFileSize,
-      category: materialForm.category,
-      targetProgram: materialForm.targetProgram,
-      targetSession: materialForm.targetSession,
-      uploadedBy: 'SCO'
-    });
-    setShowMaterialModal(false);
-    setMaterialForm({ title: '', description: '', category: 'document', targetProgram: 'Online Training', targetSession: '' });
-    setMaterialFile('');
-    setMaterialFileName('');
-    alert('Material uploaded successfully!');
-  };
-
-  // Handle messages
-  const handleSendMessage = () => {
-    if (!newMessage.trim() || !selectedConversation) return;
-    sendMessage(selectedConversation, newMessage, 'admin');
-    setNewMessage('');
-  };
-
-  // Get all students for messaging
-  const getAllStudentsForMessaging = () => {
-    return students.sort((a, b) => {
-      const aUnread = getUnreadCount(a.id, 'admin');
-      const bUnread = getUnreadCount(b.id, 'admin');
-      if (aUnread !== bUnread) return bUnread - aUnread;
-      return a.firstName.localeCompare(b.firstName);
-    });
-  };
-
-  const getTotalUnreadForAdmin = () => {
-    return students.reduce((total, student) => total + getUnreadCount(student.id, 'admin'), 0);
-  };
-
-  const filteredStudents = getAllStudentsForMessaging().filter(student =>
-    student.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    student.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    student.registrationNumber.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const chatMessages = getChatMessages().filter(m => !m.deleted);
+  const tabs = [
+    { id: 'dashboard', label: 'Dashboard', icon: <Home size={15} /> },
+    { id: 'materials', label: 'Materials', icon: <BookOpen size={15} /> },
+    { id: 'messages', label: 'Messages', icon: <MessageSquare size={15} /> },
+    { id: 'students', label: 'Students', icon: <Users size={15} /> },
+    { id: 'profile', label: 'My Profile', icon: <User size={15} /> },
+  ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-green-900 to-emerald-900">
-      {/* Header */}
-      <div className="bg-white/10 backdrop-blur-xl border-b border-white/20 py-4 px-6">
-        <div className="max-w-7xl mx-auto flex justify-between items-center">
-          <div className="flex items-center space-x-4">
-            <div className="w-12 h-12 bg-gradient-to-br from-green-400 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg">
-              <span className="text-2xl">👨‍🏫</span>
+    <div className="fade-in">
+      <div className="card-premium overflow-hidden mb-6">
+        <div className="gradient-purple p-6 relative overflow-hidden">
+          <div className="absolute inset-0 shimmer-bg" />
+          <div className="relative z-10 flex items-center justify-between flex-wrap gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center shadow-xl">
+                <Target size={28} className="text-white" />
+              </div>
+              <div><h1 className="text-2xl font-extrabold text-white">SCO Portal</h1><p className="text-white/50 text-sm">Student Coordinator — Materials & Messages</p></div>
             </div>
-            <div>
-              <h1 className="text-xl font-bold text-white">SCO Portal</h1>
-              <p className="text-sm text-green-200">Student Coordinator - Materials & Messages</p>
-            </div>
-          </div>
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-2 text-sm text-white/70">
-              {isSyncing && <span className="animate-pulse">🔄</span>}
-              <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-400' : 'bg-red-400'}`}></span>
-              <span>{isOnline ? 'Online' : 'Offline'}</span>
-            </div>
-            <button onClick={handleLogout} className="bg-red-500/80 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition">
-              Logout
-            </button>
+            <button onClick={() => { sessionStorage.removeItem('lha_admin_role'); navigate('/admin-login'); }} className="flex items-center gap-2 text-white/60 hover:text-white text-sm font-semibold bg-white/10 px-4 py-2 rounded-xl transition"><LogOut size={16} /> Logout</button>
           </div>
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="max-w-7xl mx-auto px-6 py-6">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white/10 backdrop-blur-xl rounded-xl border border-white/20 p-4">
-            <div className="text-3xl font-bold text-blue-400">{students.length}</div>
-            <div className="text-white/70">Total Students</div>
-          </div>
-          <div className="bg-white/10 backdrop-blur-xl rounded-xl border border-white/20 p-4">
-            <div className="text-3xl font-bold text-green-400">{materials.length}</div>
-            <div className="text-white/70">Materials</div>
-          </div>
-          <div className="bg-white/10 backdrop-blur-xl rounded-xl border border-white/20 p-4">
-            <div className="text-3xl font-bold text-purple-400">{getTotalUnreadForAdmin()}</div>
-            <div className="text-white/70">Unread Messages</div>
-          </div>
-          <div className="bg-white/10 backdrop-blur-xl rounded-xl border border-white/20 p-4">
-            <div className="text-3xl font-bold text-orange-400">{sessions.length}</div>
-            <div className="text-white/70">Sessions</div>
-          </div>
-        </div>
+      <div className="flex gap-2 mb-6 overflow-x-auto pb-2 no-scrollbar">
+        {tabs.map(t => (<button key={t.id} onClick={() => setTab(t.id)} className={`tab-btn ${tab === t.id ? 'tab-btn-active' : 'tab-btn-inactive'}`}>{t.icon} {t.label}</button>))}
+      </div>
 
-        {/* Tabs */}
-        <div className="flex gap-2 mb-6 flex-wrap">
-          <button
-            onClick={() => setActiveTab('materials')}
-            className={`px-6 py-3 rounded-xl font-medium transition ${
-              activeTab === 'materials'
-                ? 'bg-green-500 text-white shadow-lg shadow-green-500/30'
-                : 'bg-white/10 text-white/80 hover:bg-white/20 border border-white/20'
-            }`}
-          >
-            📚 Materials
-          </button>
-          <button
-            onClick={() => setActiveTab('messages')}
-            className={`px-6 py-3 rounded-xl font-medium transition relative ${
-              activeTab === 'messages'
-                ? 'bg-green-500 text-white shadow-lg shadow-green-500/30'
-                : 'bg-white/10 text-white/80 hover:bg-white/20 border border-white/20'
-            }`}
-          >
-            💬 Messages
-            {getTotalUnreadForAdmin() > 0 && (
-              <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs w-6 h-6 rounded-full flex items-center justify-center animate-pulse">
-                {getTotalUnreadForAdmin()}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={() => setActiveTab('profile')}
-            className={`px-6 py-3 rounded-xl font-medium transition ${
-              activeTab === 'profile'
-                ? 'bg-green-500 text-white shadow-lg shadow-green-500/30'
-                : 'bg-white/10 text-white/80 hover:bg-white/20 border border-white/20'
-            }`}
-          >
-            👤 My Profile
-          </button>
-        </div>
+      <div className="card-premium p-6 md:p-8">
+        {tab === 'dashboard' && (
+          <div className="grid grid-cols-2 gap-5 slide-up">
+            <div className="stat-card bg-gradient-to-br from-violet-500 to-violet-600 text-white"><Users size={22} className="mx-auto mb-2 opacity-80" /><div className="text-3xl font-extrabold">{students.length}</div><div className="text-sm text-white/60 mt-1">Students</div></div>
+            <div className="stat-card bg-gradient-to-br from-blue-500 to-blue-600 text-white"><BookOpen size={22} className="mx-auto mb-2 opacity-80" /><div className="text-3xl font-extrabold">{materials.length}</div><div className="text-sm text-white/60 mt-1">Materials</div></div>
+          </div>
+        )}
 
-        {/* Materials Tab */}
-        {activeTab === 'materials' && (
-          <div className="bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 p-6">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-white">Learning Materials</h2>
-              <button
-                onClick={() => setShowMaterialModal(true)}
-                className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-6 py-3 rounded-xl hover:shadow-lg hover:shadow-green-500/30 transition flex items-center gap-2"
-              >
-                <span>+</span> Upload Material
-              </button>
-            </div>
+        {tab === 'materials' && (
+          <div className="space-y-6 slide-up">
+            <h2 className="text-xl font-extrabold text-gray-800 flex items-center gap-2"><Upload size={20} className="text-violet-500" /> Upload Materials</h2>
+            {sessions.map(s => (
+              <div key={s.id} className="card-premium p-5">
+                <h3 className="font-bold text-gray-800 mb-3">{s.name}</h3>
+                <div className="file-upload mb-3">
+                  <Upload size={24} className="mx-auto text-gray-300 mb-1" />
+                  <p className="text-xs text-gray-400 mb-2">Upload study materials</p>
+                  <input type="file" onChange={e => { const f = e.target.files?.[0]; if (f) uploadMaterial(s.id, f); }} className="text-sm" />
+                </div>
+                <div className="space-y-2">
+                  {materials.filter(m => m.sessionId === s.id).map(m => (
+                    <div key={m.id} className="flex items-center justify-between bg-gray-50 p-3 rounded-xl text-sm border border-gray-100">
+                      <div className="flex items-center gap-2"><BookOpen size={14} className="text-violet-400" /> <span className="font-medium text-gray-700">{m.name}</span></div>
+                      <a href={m.fileData} download={m.name} className="text-violet-500 hover:text-violet-700"><Download size={14} /></a>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
-            <div className="grid gap-4">
-              {materials.map((material) => (
-                <div key={material.id} className="bg-white/5 border border-white/10 rounded-xl p-4 flex justify-between items-center hover:bg-white/10 transition">
-                  <div>
-                    <h3 className="font-medium text-white">{material.title}</h3>
-                    <p className="text-sm text-white/60">{material.description}</p>
-                    <p className="text-xs text-white/40 mt-1">
-                      {material.fileName} • {material.fileSize ? (material.fileSize / 1024 / 1024).toFixed(2) : 0} MB • {new Date(material.uploadedAt).toLocaleDateString()}
-                    </p>
-                    {material.targetSession && (
-                      <span className="inline-block mt-2 text-xs bg-blue-500/20 text-blue-300 px-2 py-1 rounded">
-                        {material.targetSession}
-                      </span>
-                    )}
+        {tab === 'messages' && (
+          <div className="space-y-4 slide-up">
+            <h2 className="text-xl font-extrabold text-gray-800 flex items-center gap-2"><MessageSquare size={20} className="text-violet-500" /> Student Messages</h2>
+            {students.map(st => {
+              const msgs = studentMessages.filter(m => m.senderId === st.id);
+              if (msgs.length === 0) return (
+                <div key={st.id} className="bg-gray-50 p-4 rounded-2xl flex items-center justify-between border border-gray-100">
+                  <div className="flex items-center gap-3">
+                    {st.passport ? <img src={st.passport} alt="" className="w-10 h-10 rounded-full object-cover avatar" /> : <div className="w-10 h-10 rounded-full gradient-primary flex items-center justify-center text-white font-bold text-sm">{st.fullName.charAt(0)}</div>}
+                    <span className="font-semibold text-gray-700">{st.fullName}</span>
                   </div>
-                  <button
-                    onClick={() => {
-                      if (confirm('Delete this material?')) {
-                        deleteMaterial(material.id);
-                      }
-                    }}
-                    className="text-red-400 hover:text-red-300 hover:bg-red-500/20 p-2 rounded-lg transition"
-                  >
-                    🗑️ Delete
-                  </button>
+                  <span className="text-xs text-gray-300">No messages</span>
+                </div>
+              );
+              return (
+                <div key={st.id} className="card-premium p-5">
+                  <div className="flex items-center gap-3 mb-3">
+                    {st.passport ? <img src={st.passport} alt="" className="w-10 h-10 rounded-full object-cover avatar" /> : null}
+                    <h3 className="font-bold text-gray-800">{st.fullName}</h3>
+                  </div>
+                  {msgs.map(m => (
+                    <div key={m.id} className="bg-gray-50 p-3 rounded-xl mb-2 text-sm border border-gray-100">
+                      <p className="text-gray-700">{m.content}</p>
+                      <p className="text-xs text-gray-400 mt-1">{new Date(m.timestamp).toLocaleString()}</p>
+                    </div>
+                  ))}
+                  {replyTo === st.id ? (
+                    <div className="flex gap-2 mt-3">
+                      <input value={replyMsg} onChange={e => setReplyMsg(e.target.value)} placeholder="Reply..." className="input-premium flex-1 py-2 text-sm" />
+                      <button onClick={() => sendReply(st.fullName)} className="btn-accent text-sm py-2 px-4">Send</button>
+                    </div>
+                  ) : (
+                    <button onClick={() => setReplyTo(st.id)} className="text-violet-500 text-sm font-semibold mt-2 hover:text-violet-700 transition">Reply →</button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {tab === 'students' && (
+          <div className="slide-up">
+            <h2 className="text-xl font-extrabold text-gray-800 mb-4">Students</h2>
+            <div className="space-y-2">
+              {students.map(s => (
+                <div key={s.id} className="flex items-center justify-between bg-gray-50 p-4 rounded-2xl border border-gray-100 hover:bg-white hover:shadow-sm transition-all">
+                  <div className="flex items-center gap-3">
+                    {s.passport ? <img src={s.passport} alt="" className="w-10 h-10 rounded-full object-cover avatar" /> : <div className="w-10 h-10 rounded-full gradient-primary flex items-center justify-center text-white font-bold text-sm">{s.fullName.charAt(0)}</div>}
+                    <div><p className="font-semibold text-gray-700">{s.fullName}</p><p className="text-xs text-gray-400">{s.regNumber}</p></div>
+                  </div>
+                  <button onClick={() => setSelectedStudent(s)} className="p-2 rounded-xl bg-violet-50 text-violet-500 hover:bg-violet-100 transition"><Eye size={16} /></button>
                 </div>
               ))}
-              {materials.length === 0 && (
-                <div className="text-center py-12 text-white/50">
-                  <span className="text-5xl mb-4 block">📚</span>
-                  <p>No materials uploaded yet</p>
-                  <p className="text-sm mt-1">Click "Upload Material" to add your first resource</p>
-                </div>
-              )}
             </div>
           </div>
         )}
 
-        {/* Messages Tab */}
-        {activeTab === 'messages' && (
-          <div className="bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 p-6">
-            <h2 className="text-xl font-bold text-white mb-4">Student Messages</h2>
-            
-            <div className="mb-4">
-              <input
-                type="text"
-                placeholder="Search students..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full md:w-64 bg-white/10 border border-white/20 text-white rounded-xl px-4 py-3 placeholder-white/40 focus:outline-none focus:border-green-400"
-              />
+        {tab === 'profile' && scoIdx >= 0 && (
+          <div className="max-w-md mx-auto slide-up">
+            <h2 className="text-xl font-extrabold text-gray-800 mb-4">My Profile</h2>
+            <div className="text-center mb-4">
+              {staff[scoIdx].picture ? <img src={staff[scoIdx].picture} alt="" className="w-24 h-24 rounded-full mx-auto object-cover avatar-ring shadow-lg" /> : <div className="w-24 h-24 rounded-full mx-auto gradient-purple flex items-center justify-center text-white text-3xl font-bold shadow-lg">{staff[scoIdx].name.charAt(0)}</div>}
+              <h3 className="font-bold text-lg mt-3">{staff[scoIdx].name}</h3>
+              <span className="badge badge-info mt-1 inline-block">{staff[scoIdx].role}</span>
             </div>
-
-            <div className="grid md:grid-cols-3 gap-4" style={{ height: '500px' }}>
-              {/* Conversation List */}
-              <div className="bg-white/5 border border-white/10 rounded-xl overflow-hidden">
-                <div className="bg-green-500/20 p-3 font-medium border-b border-white/10 text-white">
-                  All Students ({students.length})
-                </div>
-                <div className="overflow-y-auto" style={{ height: '450px' }}>
-                  {filteredStudents.length === 0 ? (
-                    <div className="text-center py-8 text-white/50">No students found</div>
-                  ) : (
-                    filteredStudents.map((student) => {
-                      const unread = getUnreadCount(student.id, 'admin');
-                      const hasMessages = messages.some(m => m.studentId === student.id);
-                      return (
-                        <button
-                          key={student.id}
-                          onClick={() => {
-                            setSelectedConversation(student.id);
-                            markMessagesAsRead(student.id, 'admin');
-                          }}
-                          className={`w-full p-3 text-left border-b border-white/5 hover:bg-white/10 transition ${
-                            selectedConversation === student.id ? 'bg-green-500/20' : ''
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-2">
-                              {student.profilePicture ? (
-                                <img src={student.profilePicture} alt="" className="w-10 h-10 rounded-full object-cover" />
-                              ) : (
-                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-green-400 to-emerald-600 flex items-center justify-center text-white text-sm font-bold">
-                                  {student.firstName[0]}{student.lastName[0]}
-                                </div>
-                              )}
-                              <div>
-                                <div className="font-medium text-sm text-white">
-                                  {student.firstName} {student.lastName}
-                                  {student.isLeader && <span className="ml-1 text-yellow-400">⭐</span>}
-                                </div>
-                                <div className="text-xs text-white/50">{student.registrationNumber}</div>
-                                {!hasMessages && (
-                                  <div className="text-xs text-white/30">No messages yet</div>
-                                )}
-                              </div>
-                            </div>
-                            {unread > 0 && (
-                              <span className="bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center animate-pulse">
-                                {unread}
-                              </span>
-                            )}
-                          </div>
-                        </button>
-                      );
-                    })
-                  )}
+            <button onClick={() => setEditingProfile(!editingProfile)} className="btn-accent w-full mb-4">{editingProfile ? 'Close Editor' : 'Edit Profile'}</button>
+            {editingProfile && (
+              <div className="space-y-3 scale-in">
+                <input placeholder="Name" value={staff[scoIdx].name} onChange={e => { const a = [...staff]; a[scoIdx] = { ...a[scoIdx], name: e.target.value }; saveStaffProfiles(a); doRefresh(); }} className="input-premium" />
+                <input placeholder="Email" value={staff[scoIdx].email} onChange={e => { const a = [...staff]; a[scoIdx] = { ...a[scoIdx], email: e.target.value }; saveStaffProfiles(a); doRefresh(); }} className="input-premium" />
+                <input placeholder="Phone" value={staff[scoIdx].phone} onChange={e => { const a = [...staff]; a[scoIdx] = { ...a[scoIdx], phone: e.target.value }; saveStaffProfiles(a); doRefresh(); }} className="input-premium" />
+                <input placeholder="Occupation" value={staff[scoIdx].occupation} onChange={e => { const a = [...staff]; a[scoIdx] = { ...a[scoIdx], occupation: e.target.value }; saveStaffProfiles(a); doRefresh(); }} className="input-premium" />
+                <div className="file-upload">
+                  <label className="text-sm text-gray-500">Profile Picture</label>
+                  <input type="file" accept="image/*" onChange={async e => { const f = e.target.files?.[0]; if (f) { const d = await fileToBase64(f); const a = [...staff]; a[scoIdx] = { ...a[scoIdx], picture: d }; saveStaffProfiles(a); doRefresh(); } }} className="text-sm mt-1" />
                 </div>
               </div>
-
-              {/* Messages */}
-              <div className="md:col-span-2 bg-white/5 border border-white/10 rounded-xl overflow-hidden flex flex-col">
-                {selectedConversation ? (
-                  <>
-                    <div className="bg-green-500/20 p-3 font-medium border-b border-white/10 flex items-center space-x-3">
-                      {(() => {
-                        const student = students.find(s => s.id === selectedConversation);
-                        return student ? (
-                          <>
-                            {student.profilePicture ? (
-                              <img src={student.profilePicture} alt="" className="w-8 h-8 rounded-full object-cover" />
-                            ) : (
-                              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-green-400 to-emerald-600 flex items-center justify-center text-white text-sm font-bold">
-                                {student.firstName[0]}{student.lastName[0]}
-                              </div>
-                            )}
-                            <div>
-                              <div className="font-medium text-white">{student.firstName} {student.lastName}</div>
-                              <div className="text-xs text-white/50">{student.email}</div>
-                            </div>
-                          </>
-                        ) : null;
-                      })()}
-                    </div>
-                    <div className="flex-1 overflow-y-auto p-4 space-y-3" style={{ height: '350px' }}>
-                      {getMessagesByStudent(selectedConversation).length === 0 ? (
-                        <div className="text-center py-12 text-white/50">
-                          <span className="text-5xl mb-4 block">💬</span>
-                          <p>No messages yet. Start the conversation!</p>
-                        </div>
-                      ) : (
-                        getMessagesByStudent(selectedConversation).map((msg) => (
-                          <div
-                            key={msg.id}
-                            className={`flex ${msg.senderType === 'admin' ? 'justify-end' : 'justify-start'}`}
-                          >
-                            <div
-                              className={`max-w-xs px-4 py-2 rounded-2xl ${
-                                msg.senderType === 'admin'
-                                  ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white'
-                                  : 'bg-white/10 text-white'
-                              }`}
-                            >
-                              <p>{msg.content}</p>
-                              <p className={`text-xs mt-1 ${msg.senderType === 'admin' ? 'text-green-200' : 'text-white/50'}`}>
-                                {new Date(msg.timestamp).toLocaleTimeString()}
-                              </p>
-                            </div>
-                          </div>
-                        ))
-                      )}
-                      <div ref={messagesEndRef} />
-                    </div>
-                    <div className="p-3 border-t border-white/10 flex space-x-2">
-                      <input
-                        type="text"
-                        value={newMessage}
-                        onChange={(e) => setNewMessage(e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                        placeholder="Type a message..."
-                        className="flex-1 bg-white/10 border border-white/20 text-white rounded-xl px-4 py-2 placeholder-white/40 focus:outline-none focus:border-green-400"
-                      />
-                      <button
-                        onClick={handleSendMessage}
-                        disabled={!newMessage.trim()}
-                        className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-6 py-2 rounded-xl hover:shadow-lg transition disabled:opacity-50"
-                      >
-                        Send
-                      </button>
-                    </div>
-                  </>
-                ) : (
-                  <div className="flex-1 flex items-center justify-center text-white/50">
-                    <div className="text-center">
-                      <span className="text-6xl mb-4 block">👈</span>
-                      <p>Select a student to view or start a conversation</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Profile Tab */}
-        {activeTab === 'profile' && (
-          <div className="bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 p-6">
-            <h2 className="text-xl font-bold text-white mb-6">My Profile</h2>
-            <p className="text-white/60 mb-6">Update your contact information. This will be visible to students in their portal.</p>
-            
-            <div className="grid md:grid-cols-3 gap-8">
-              {/* Profile Picture */}
-              <div className="flex flex-col items-center">
-                <div className="relative mb-4">
-                  {profilePicture ? (
-                    <img src={profilePicture} alt="Profile" className="w-40 h-40 rounded-full object-cover border-4 border-green-400 shadow-xl" />
-                  ) : (
-                    <div className="w-40 h-40 rounded-full bg-gradient-to-br from-green-400 to-emerald-600 flex items-center justify-center text-white text-5xl font-bold shadow-xl">
-                      {profileForm.name?.[0] || '👨‍🏫'}
-                    </div>
-                  )}
-                  <label className="absolute bottom-2 right-2 w-10 h-10 bg-green-500 rounded-full flex items-center justify-center cursor-pointer hover:bg-green-600 transition shadow-lg">
-                    <span className="text-white">📷</span>
-                    <input type="file" accept="image/*" onChange={handleProfilePictureChange} className="hidden" />
-                  </label>
-                </div>
-                <p className="text-white/60 text-sm text-center">Click the camera icon to change your photo</p>
-              </div>
-
-              {/* Profile Form */}
-              <div className="md:col-span-2 space-y-4">
-                <div>
-                  <label className="block text-white/80 text-sm mb-2">Full Name *</label>
-                  <input
-                    type="text"
-                    value={profileForm.name}
-                    onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
-                    className="w-full bg-white/10 border border-white/20 text-white rounded-xl px-4 py-3 placeholder-white/40 focus:outline-none focus:border-green-400"
-                    placeholder="Enter your full name"
-                  />
-                </div>
-
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-white/80 text-sm mb-2">Email Address *</label>
-                    <input
-                      type="email"
-                      value={profileForm.email}
-                      onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
-                      className="w-full bg-white/10 border border-white/20 text-white rounded-xl px-4 py-3 placeholder-white/40 focus:outline-none focus:border-green-400"
-                      placeholder="your@email.com"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-white/80 text-sm mb-2">Phone Number *</label>
-                    <input
-                      type="tel"
-                      value={profileForm.phone}
-                      onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
-                      className="w-full bg-white/10 border border-white/20 text-white rounded-xl px-4 py-3 placeholder-white/40 focus:outline-none focus:border-green-400"
-                      placeholder="+234 800 000 0000"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-white/80 text-sm mb-2">Occupation</label>
-                    <input
-                      type="text"
-                      value={profileForm.occupation}
-                      onChange={(e) => setProfileForm({ ...profileForm, occupation: e.target.value })}
-                      className="w-full bg-white/10 border border-white/20 text-white rounded-xl px-4 py-3 placeholder-white/40 focus:outline-none focus:border-green-400"
-                      placeholder="e.g., Student Coordinator"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-white/80 text-sm mb-2">School/Organization</label>
-                    <input
-                      type="text"
-                      value={profileForm.school}
-                      onChange={(e) => setProfileForm({ ...profileForm, school: e.target.value })}
-                      className="w-full bg-white/10 border border-white/20 text-white rounded-xl px-4 py-3 placeholder-white/40 focus:outline-none focus:border-green-400"
-                      placeholder="e.g., Light House Academy"
-                    />
-                  </div>
-                </div>
-
-                <div className="pt-4">
-                  <button
-                    onClick={handleSaveProfile}
-                    disabled={isSaving || !profileForm.name || !profileForm.email || !profileForm.phone}
-                    className="w-full md:w-auto bg-gradient-to-r from-green-500 to-emerald-600 text-white px-8 py-3 rounded-xl hover:shadow-lg hover:shadow-green-500/30 transition disabled:opacity-50 flex items-center justify-center gap-2"
-                  >
-                    {isSaving ? (
-                      <>
-                        <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                        </svg>
-                        <span>Saving...</span>
-                      </>
-                    ) : (
-                      <>
-                        <span>💾</span>
-                        <span>Save Profile</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-
-                <div className="mt-6 p-4 bg-blue-500/20 border border-blue-400/30 rounded-xl">
-                  <p className="text-blue-300 text-sm">
-                    <strong>Note:</strong> Your contact information will be visible to students in their portal under "Contact Staff" section.
-                  </p>
-                </div>
-              </div>
-            </div>
+            )}
           </div>
         )}
       </div>
 
-      {/* Group Chat */}
-      <GroupChat />
+      {selectedStudent && (
+        <div className="modal-overlay" onClick={() => setSelectedStudent(null)}>
+          <div className="bg-white rounded-3xl p-7 max-w-lg w-full mx-4 max-h-[80vh] overflow-y-auto modal-content shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between mb-4"><h2 className="text-xl font-extrabold text-gray-800">Student Profile</h2><button onClick={() => setSelectedStudent(null)} className="p-2 rounded-xl hover:bg-gray-100"><X size={20} /></button></div>
+            <div className="text-center mb-4">
+              {selectedStudent.passport ? <img src={selectedStudent.passport} alt="" className="w-28 h-28 rounded-full mx-auto object-cover avatar-ring shadow-xl" /> : <div className="w-28 h-28 rounded-full mx-auto gradient-primary flex items-center justify-center text-white text-4xl font-bold shadow-xl">{selectedStudent.fullName.charAt(0)}</div>}
+              <h3 className="font-bold text-xl mt-3">{selectedStudent.fullName}</h3>
+            </div>
+            <div className="space-y-2">
+              {[['Reg Number', selectedStudent.regNumber], ['Email', selectedStudent.email], ['Phone', selectedStudent.phone], ['Drama Group', selectedStudent.dramaGroup], ['Position', selectedStudent.position], ['Country', selectedStudent.country], ['State', selectedStudent.state]].map(([k, v]) => (
+                <div key={k} className="flex justify-between bg-gray-50 p-3 rounded-xl border border-gray-100"><span className="text-gray-400 text-sm">{k}</span><span className="font-semibold text-gray-700 text-sm">{v || 'N/A'}</span></div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
-      {/* Material Upload Modal */}
-      {showMaterialModal && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-800 border border-white/20 rounded-2xl max-w-lg w-full p-6">
-            <h3 className="text-xl font-bold text-white mb-4">Upload Material</h3>
-            <div className="space-y-4">
-              <input
-                type="text"
-                placeholder="Title *"
-                value={materialForm.title}
-                onChange={(e) => setMaterialForm({ ...materialForm, title: e.target.value })}
-                className="w-full bg-white/10 border border-white/20 text-white rounded-xl px-4 py-3 placeholder-white/40 focus:outline-none focus:border-green-400"
-              />
-              <textarea
-                placeholder="Description"
-                value={materialForm.description}
-                onChange={(e) => setMaterialForm({ ...materialForm, description: e.target.value })}
-                className="w-full bg-white/10 border border-white/20 text-white rounded-xl px-4 py-3 placeholder-white/40 focus:outline-none focus:border-green-400"
-                rows={3}
-              />
-              <select
-                value={materialForm.category}
-                onChange={(e) => setMaterialForm({ ...materialForm, category: e.target.value })}
-                className="w-full bg-white/10 border border-white/20 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-green-400"
-              >
-                <option value="document">Document</option>
-                <option value="video">Video</option>
-                <option value="audio">Audio</option>
-                <option value="other">Other</option>
-              </select>
-              <select
-                value={materialForm.targetSession}
-                onChange={(e) => setMaterialForm({ ...materialForm, targetSession: e.target.value })}
-                className="w-full bg-white/10 border border-white/20 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-green-400"
-              >
-                <option value="">All Sessions</option>
-                {sessions.map(s => (
-                  <option key={s.id} value={s.name}>{s.name}</option>
-                ))}
-              </select>
-              <div className="border-2 border-dashed border-white/30 rounded-xl p-4 text-center">
-                <input
-                  type="file"
-                  onChange={handleMaterialFileChange}
-                  className="w-full text-white/70"
-                />
-                {materialFileName && (
-                  <p className="text-sm text-green-400 mt-2">✓ {materialFileName}</p>
-                )}
+      <button onClick={() => setChatOpen(!chatOpen)} className="chat-fab gradient-purple text-white">
+        {chatOpen ? <X size={24} /> : <MessageCircle size={28} />}
+      </button>
+      {chatOpen && (
+        <div className="fixed bottom-24 right-4 left-4 md:left-auto md:w-[480px] h-[520px] bg-white rounded-3xl shadow-2xl border border-gray-200 flex flex-col z-50 scale-in overflow-hidden">
+          <div className="gradient-purple text-white p-5 flex items-center justify-between"><div><h3 className="font-bold text-sm">{settings.siteName} - Group Chat</h3><p className="text-xs text-white/40">SCO</p></div><button onClick={() => setChatOpen(false)} className="text-white/50 hover:text-white"><X size={20} /></button></div>
+          <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50/50">
+            {chatMessages.map(m => (
+              <div key={m.id} className={`flex gap-2 ${m.senderId === 'sco' ? 'flex-row-reverse' : ''}`}>
+                <div className={m.senderId === 'sco' ? 'chat-bubble-own' : 'chat-bubble-other'}>
+                  <p className="text-xs font-bold mb-1">{m.senderName}</p>
+                  {m.type === 'voice' && m.fileData ? <audio controls src={m.fileData} /> : <p className="text-sm">{m.content}</p>}
+                  <p className="text-[10px] mt-1 opacity-40">{new Date(m.timestamp).toLocaleTimeString()}</p>
+                </div>
               </div>
-            </div>
-            <div className="flex justify-end space-x-3 mt-6">
-              <button
-                onClick={() => {
-                  setShowMaterialModal(false);
-                  setMaterialFile('');
-                  setMaterialFileName('');
-                }}
-                className="px-4 py-2 text-white/70 hover:bg-white/10 rounded-xl transition"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleUploadMaterial}
-                disabled={!materialForm.title || !materialFile}
-                className="px-6 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl hover:shadow-lg transition disabled:opacity-50"
-              >
-                Upload
-              </button>
-            </div>
+            ))}
+            <div ref={chatEndRef} />
+          </div>
+          <div className="p-3 border-t bg-white flex gap-2 items-center">
+            <button onClick={sendVoice} className="p-2.5 rounded-xl bg-gray-100 text-gray-500 hover:bg-violet-100 hover:text-violet-600 transition"><Mic size={18} /></button>
+            <input value={chatMsg} onChange={e => setChatMsg(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendChat()} placeholder="Type a message..." className="flex-1 bg-gray-50 border-0 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-violet-200" />
+            <button onClick={sendChat} className="p-2.5 rounded-xl gradient-purple text-white hover:opacity-90 transition shadow-lg"><Send size={16} /></button>
           </div>
         </div>
       )}
     </div>
   );
-};
-
-export default SCOPortal;
+}
