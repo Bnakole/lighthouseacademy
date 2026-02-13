@@ -1142,3 +1142,56 @@ body {
 @media (min-width: 1280px) {
   .container { max-width: 1280px; }
 }
+
+/* ===== PASSWORD REVEAL BUTTON STYLING ===== */
+.password-toggle {
+  @apply absolute right-3 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-gray-600 transition-all duration-200;
+}
+
+.password-toggle:hover {
+  @apply bg-gray-100 rounded-lg;
+}
+
+.password-toggle:focus {
+  @apply outline-none ring-2 ring-indigo-400 ring-offset-1 rounded-lg;
+}
+
+/* Password input with reveal button */
+.password-input-wrapper {
+  position: relative;
+}
+
+.password-input-wrapper input {
+  padding-right: 48px !important;
+}
+
+.password-reveal-btn {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 8px;
+  border-radius: 8px;
+  color: #64748b;
+  transition: all 0.2s ease;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.password-reveal-btn:hover {
+  background: rgba(99, 102, 241, 0.08);
+  color: #6366f1;
+}
+
+.password-reveal-btn:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+.password-reveal-btn:active {
+  transform: translateY(-50%) scale(0.95);
+}

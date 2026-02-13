@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Shield, ArrowRight, AlertCircle, Lock, Crown, ClipboardList, Target } from 'lucide-react';
+import { Shield, ArrowRight, AlertCircle, Lock, Crown, ClipboardList, Target, Eye, EyeOff } from 'lucide-react';
 
 export function AdminLogin() {
   const [role, setRole] = useState<'admin' | 'secretary' | 'sco'>('admin');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
@@ -71,9 +72,24 @@ export function AdminLogin() {
               <label className="block text-sm font-semibold text-gray-600 mb-2 flex items-center gap-2">
                 <Lock size={14} /> Password
               </label>
-              <input type="password" required value={password} onChange={e => setPassword(e.target.value)}
-                placeholder="Enter your password"
-                className="input-premium text-center" />
+              <div className="relative">
+                <input 
+                  type={showPassword ? "text" : "password"} 
+                  required 
+                  value={password} 
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="Enter your password"
+                  className="input-premium text-center pr-12" 
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-gray-600 transition-colors"
+                  title={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
             </div>
 
             <button type="submit" className="w-full btn-gold py-4 flex items-center justify-center gap-2 text-base">

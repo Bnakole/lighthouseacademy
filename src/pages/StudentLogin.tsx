@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { findStudentByRegNumber } from '../store';
-import { GraduationCap, ArrowRight, AlertCircle, Lock, Clock } from 'lucide-react';
+import { GraduationCap, ArrowRight, AlertCircle, Lock, Clock, Eye, EyeOff } from 'lucide-react';
 
 export function StudentLogin() {
   const [regNumber, setRegNumber] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
@@ -76,9 +77,24 @@ export function StudentLogin() {
               <label className="block text-sm font-semibold text-gray-600 mb-2 flex items-center gap-2">
                 <Lock size={14} /> Registration Number (Password)
               </label>
-              <input type="text" required value={regNumber} onChange={e => setRegNumber(e.target.value)}
-                placeholder="e.g. LHA-0001"
-                className="input-premium text-center text-lg font-mono tracking-widest" />
+              <div className="relative">
+                <input 
+                  type={showPassword ? "text" : "password"} 
+                  required 
+                  value={regNumber} 
+                  onChange={e => setRegNumber(e.target.value)}
+                  placeholder="e.g. LHA-0001"
+                  className="input-premium text-center text-lg font-mono tracking-widest pr-12" 
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-gray-600 transition-colors"
+                  title={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
             </div>
             <button type="submit" className="w-full btn-primary py-4 flex items-center justify-center gap-2 text-base">
               Login to Portal <ArrowRight size={18} />
